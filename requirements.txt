@@ -1,0 +1,6 @@
+geopy
+openai
+PyPDF2
+streamlit
+streamlit_folium
+folium
