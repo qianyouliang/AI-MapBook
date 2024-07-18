@@ -3,7 +3,7 @@ from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 
 class GeocodeUtils:
-    def __init__(self, user_agent="geoapiExercises"):
+    def __init__(self, user_agent="GISerLiu"):
         """
         初始化GeocodeUtils类，设置用户代理。
         

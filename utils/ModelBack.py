@@ -11,13 +11,15 @@ class LLM:
         self.model_type = model_type
         self.res = ''
         if self.model_type=='deepseek':
-            self.base_url = os.getenv("BASE_URL")
-            self.api_key = os.getenv("DEEPSEEK_API_KEY")
-            self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+            base_url = os.getenv("BASE_URL")
+            # base_url = "https://api.deepseek.com"
+            api_key = os.getenv("DEEPSEEK_API_KEY")
+
+            self.client = OpenAI(api_key=api_key, base_url=base_url)
    
     def get_event_list(self,text:str):
         prompt:str = '''
-                    您是一名地理分析师，您的任务是分析给定的历史或新闻情报等文本，定位关注事件的内容，发生的位置，时间，相关的人物和历史事件，以文本中地点变化为决定性指标划分文本为单独的事件(包含地理位置(必须包含)，事件内容等信息(可选)；
+                    您是一名地理分析师，您的任务是分析给定的历史或新闻情报等文本，定位关注事件的内容，发生的位置，时间，相关的人物和历史事件，以文本中地点变化为决定性指标划分文本为单独的事件(包含地理位置(必须包含)，事件内容等信息(可选)，并且按照事件前后顺序排列；
             格式如下：
             ```
             xxx于xxx时间在xxx地做了xxx事情，造成了xxx影响；
@@ -59,8 +61,14 @@ class LLM:
             "keys": ["Twitter", "Facebook", "LinkedIn"],
             "address": "中国北京",
             ```
+            生成的address要求：
+            - 严格符合地理编码和OSM的规范，
+            - 国外地址用英语，
+            - 过去的地址使用现在的地址来表示，不然地理编码不能识别；
+            - 严格要求一个事件一个地址，不能同时表示多个地址
+            - 符合官方地名，最大化让地理编码器能识别；
         生成的内容是一个json格式 用大括号json格式扩住,并将将生成的情报信息包裹在```event```中，要求使用中文、完整且精炼的语言进行描述。
-        好的，请根据以下用户输入的问题进行分析生成回答,严格{language}输出，生成的位置要符合地理编码的规范，方便我编码：
+        好的，请根据以下用户输入的问题进行分析生成回答,严格{language}输出：
             {event}
         '''.format(event = event_text,language = language)
             response = self.client.chat.completions.create(
