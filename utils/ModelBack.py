@@ -14,7 +14,6 @@ class LLM:
             base_url = os.getenv("BASE_URL")
             # base_url = "https://api.deepseek.com"
             api_key = os.getenv("DEEPSEEK_API_KEY")
-
             self.client = OpenAI(api_key=api_key, base_url=base_url)
    
     def get_event_list(self,text:str):
