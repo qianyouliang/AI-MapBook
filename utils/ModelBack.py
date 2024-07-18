@@ -6,14 +6,14 @@ from datetime import datetime
 
 
 class LLM:
-    def __init__(self,file_path:str = '../event_list.json' ,model_type:str = "deepseek"):
+    def __init__(self,api_key: str,file_path:str = '../event_list.json' ,model_type:str = "deepseek",  ):
         self.file_path = file_path
         self.model_type = model_type
         self.res = ''
         if self.model_type=='deepseek':
-            base_url = os.getenv("BASE_URL")
-            # base_url = "https://api.deepseek.com"
-            api_key = os.getenv("DEEPSEEK_API_KEY")
+            # base_url = os.getenv("BASE_URL")
+            base_url = "https://api.deepseek.com"
+            # api_key = os.getenv("DEEPSEEK_API_KEY")
             self.client = OpenAI(api_key=api_key, base_url=base_url)
    
     def get_event_list(self,text:str):

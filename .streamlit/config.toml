@@ -1,0 +1,8 @@
+[browser]
+# 禁止收集使用统计数据
+gatherUsageStats = false
+
+[server]
+# 禁止跨源资源共享（CORS）和跨站请求伪造（XSRF）保护
+# enableCORS = false
+enableXsrfProtection = false

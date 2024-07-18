@@ -4,6 +4,3 @@ PyPDF2
 streamlit
 streamlit_folium
 folium
-ipex-llm==2.1.0b20240711
-modelscope == 1.14.0
-transformers==4.38.2

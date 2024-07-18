@@ -3,9 +3,8 @@ from io import BytesIO
 from utils.ModelBack import LLM
 
 class FileProcessor:
-    def __init__(self):
-        self.llm = LLM()  # 假设LLM类已经定义并可以初始化
-
+    def __init__(self,api_key):
+        self.llm = LLM(api_key = api_key)  # 假设LLM类已经定义并可以初始化
     def extract_text_from_pdf(self, file):
         pdf_reader = PyPDF2.PdfReader(file)
         text = ""

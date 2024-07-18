@@ -10,12 +10,15 @@ import time
 # 使用session_state来保存用户名
 if 'username' not in st.session_state:
     st.session_state.username = "GISerLiu"
+if 'api_key' not in st.session_state:
+    st.session_state.api_key = "your deepseek api key"
 
 st.session_state.username = st.sidebar.text_input("请输入用户名", value=st.session_state.username, key="username_input")
+st.session_state.api_key = st.sidebar.text_input("请输入deepseek_api_key", value=st.session_state.api_key, key="api_key_input")
 
 # 实例化geocode_utils和file_processor
 geocode_utils = GeocodeUtils(user_agent=st.session_state.username)
-file_processor = FileProcessor()
+file_processor = FileProcessor(api_key=st.session_state.api_key)
 
 def create_geojson(geo_info_list, m):
     features = []
