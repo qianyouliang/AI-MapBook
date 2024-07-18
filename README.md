@@ -49,6 +49,7 @@ AI-MapBook/
 
 ## 安装与启动
 
+> 需要修改.env-example文件为.env文件，然后填入自己的deepseek_api_key，然后保存，继续下面的操作；
 
 1. 进入项目目录：
    ```sh
