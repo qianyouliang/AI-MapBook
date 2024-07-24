@@ -4,3 +4,6 @@ PyPDF2
 streamlit
 streamlit_folium
 folium
+requests
+geopandas
+shapely

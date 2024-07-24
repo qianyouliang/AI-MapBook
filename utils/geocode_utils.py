@@ -1,16 +1,25 @@
-# utils.py
-from geopy.geocoders import Nominatim
+# # utils.py
+from geopy.geocoders import Nominatim, BaiduV3
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 
 class GeocodeUtils:
-    def __init__(self, user_agent="GISerLiu"):
+    def __init__(self, user_agent="GISerLiu", api_type="free", baidu_key=None):
         """
-        初始化GeocodeUtils类，设置用户代理。
+        初始化GeocodeUtils类，设置用户代理和API类型。
         
         Parameters:
-        user_agent (str): 用户代理字符串，默认为"geoapiExercises"。
+        user_agent (str): 用户代理字符串，默认为"GISerLiu"。
+        api_type (str): API类型，"free"使用Nominatim，"baidu"使用百度API。
+        baidu_key (str): 百度API的密钥，当api_type为"baidu"时需要提供。
         """
-        self.geolocator = Nominatim(user_agent=user_agent)
+        self.api_type = api_type
+        
+        if api_type == "free" and len(user_agent)>0:
+            self.geolocator = Nominatim(user_agent=user_agent)
+        elif api_type == "baidu" and baidu_key is not None:
+            self.geolocator = BaiduV3(api_key=baidu_key)
+        else:
+            raise ValueError("Invalid API type or missing Baidu API key")
 
     def geocode(self, address):
         """
@@ -58,3 +67,10 @@ class GeocodeUtils:
                 return {'error': 'Location not found'}
         except (GeocoderTimedOut, GeocoderServiceError) as e:
             return {'error': str(e)}
+
+# 使用示例
+# 百度API需要提供密钥
+# geocode_utils = GeocodeUtils(api_type="baidu", baidu_key="YourBaiduAPIKey")
+
+# 免费Nominatim API
+# geocode_utils = GeocodeUtils(api_type="free")
