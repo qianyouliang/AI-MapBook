@@ -6,9 +6,12 @@ Datawhale AI 夏令营😀
 
 ## 项目介绍
 
-![5c675597c4c332cc436f474ba7e1611](https://github.com/user-attachments/assets/32aba953-6282-4fe7-853b-24de93a02fa8)
+![image](https://github.com/user-attachments/assets/0dee61ff-f80b-47ca-b02c-fa0c768752ae)
+
 
 LLM-MapBook 是一个利用LLM技术为故事讲述提供地图支持的项目。它通过大型语言模型（LLM）从书籍中提取地理信息和属性信息，结合地理编码得到地理坐标数据，并在交互式地图上进行可视化展示，为读者提供沉浸式的故事探索体验。该项目适用于故事创作者、教育工作者和地图爱好者，通过结合人工智能和地理空间技术，增强叙事效果。
+
+[在线体验](https://ai-mapbook-zasfamyfxydadn2x8qyros.streamlit.app/)
 
 ## 应用场景
 
