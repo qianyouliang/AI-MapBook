@@ -14,7 +14,7 @@ import os
 os.environ["OMP_NUM_THREADS"] = "8"
 
 class LLM:
-    def __init__(self, api_key: str='', file_path: str = '../event_list.json', model_type: str = "deepseek",model_path:str='qwen2chat_int4'):
+    def __init__(self, api_key: str='', file_path: str = '../event_list.json', model_type: str = "deepseek",model_path:str='models'):
         self.file_path = file_path
         self.model_type = model_type
         self.res = ''
