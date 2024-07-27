@@ -1,3 +1,11 @@
 .env
 old/*
 LLM-MapBook/*
+dash/*
+qwen2chat_src/*
+streamlit/*
+__pycache__/*
+*.pyc
+*.pyo
+*.pyd
+*.pyz
