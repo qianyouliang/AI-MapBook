@@ -20,3 +20,4 @@ class FileProcessor:
         text = file.read().decode("utf-8")
         chunk_size = 5000
         return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+        

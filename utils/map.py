@@ -11,14 +11,14 @@ class Map:
     def __init__(self):
         self.tiles_options = {
             "OpenStreetMap": "OpenStreetMap",
-            "Stamen Terrain": "Stamen Terrain",
-            "Stamen Toner": "Stamen Toner",
-            "Stamen Watercolor": "Stamen Watercolor",
+            # "Stamen Terrain": "Stamen Terrain",
+            # "Stamen Toner": "Stamen Toner",
+            # "Stamen Watercolor": "Stamen Watercolor",
             "CartoDB positron": "CartoDB positron",
             "CartoDB dark_matter": "CartoDB dark_matter",
-            "Google Satellite": 'https://mt.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-            "高德地图":"http://webst02.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}",
-            "腾讯地图":"http://rt{s}.map.gtimg.com/realtimerender?z={z}&x={x}&y={y}&type=vector&style=0",
+            # "Google Satellite": 'https://mt.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+            # "高德地图":"http://webst02.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}",
+            # "腾讯地图":"http://rt{s}.map.gtimg.com/realtimerender?z={z}&x={x}&y={y}&type=vector&style=0",
         }
         self.map = None
         self.features = []
@@ -32,15 +32,14 @@ class Map:
             #     self.map = folium.Map(location=map_center, zoom_start=2)
             #     folium.TileLayer(tiles=self.tiles_options[selected_tile], attr=selected_tile).add_to(self.map)
             # else:
-                self.map = folium.Map(location=map_center, zoom_start=2, tiles=self.tiles_options[selected_tile],attr = 'default',width=1000,
-                height=900)
+                self.map = folium.Map(location=map_center, zoom_start=2, tiles=self.tiles_options[selected_tile],attr = 'default',width=1200,
+                height=400)
                 # folium.LayerControl().add_to(self.map)
         else:
             print(f"Tile option {selected_tile} not found.")
         return self.map
 
     def add_marker(self, info, coordinates):
-        print(coordinates,"坐标信息")
         feature = {
             "type": "Feature",
             "properties": {
@@ -111,7 +110,7 @@ class Map:
         #     folium.PolyLine(self.locations, color="blue", weight=2.5, opacity=1).add_to(self.map)
         #     self.display()
 
-    def display(self, width=1000, height=900):
+    def display(self, width=1200, height=400):
         if self.map is not None:
             st_folium(self.map, width=width, height=height)
         else:

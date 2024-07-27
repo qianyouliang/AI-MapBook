@@ -1,4 +1,4 @@
-geopy
+geopy==2.4.1
 openai
 PyPDF2
 streamlit
@@ -7,3 +7,18 @@ folium
 requests
 geopandas
 shapely
+ipex-llm==2.1.0b20240711
+modelscope
+transformers==4.38.2
+dash==2.17.1
+feffery_antd_components==0.3.0rc24
+feffery_leaflet_components==0.1.0rc4
+feffery_markdown_components==0.3.0rc2
+feffery_utils_components==0.2.0rc20
+Flask==3.0.3
+python-dotenv==1.0.1
+waitress==3.0.0
+dash-bootstrap-components
+plotly
+gunicorn
+accelerate
