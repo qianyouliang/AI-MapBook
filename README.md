@@ -72,6 +72,23 @@ AI-MapBook/
    pip install -r requirements.txt 
    python install.py
    ```
+   > 配置模型设置：下载模型权重后，通过包含以下代码片段来修改文件：config.json
+   ```json
+    {
+        "architectures": [
+            "Qwen2ForCausalLM"
+        ],
+        // ...
+        "vocab_size": 152064,
+
+        // adding the following snippets
+        "rope_scaling": {
+            "factor": 4.0,
+            "original_max_position_embeddings": 32768,
+            "type": "yarn"
+        }
+    }
+   ```
 
 3. 启动后端服务：
    ```sh
