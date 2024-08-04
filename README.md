@@ -72,7 +72,7 @@ AI-MapBook/
    pip install -r requirements.txt 
    python install.py
    ```
-   > 配置模型设置：下载模型权重后，通过包含以下代码片段来修改文件：config.json
+   > 配置模型设置：下载模型权重后，通过修改config.json的以下代码片段来修改模型输入输出上下文长度：
    ```json
     {
         "architectures": [
