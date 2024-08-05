@@ -90,6 +90,11 @@ AI-MapBook/
             "type": "yarn"
         }
     }
+
+   > 如果需要本地部署,请在requirements.txt文件中添加:
+   ```bash
+   llama-index-llms-ipex-llm
+   ```
    ```
 
 3. 启动后端服务：
