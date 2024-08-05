@@ -74,6 +74,11 @@ AI-MapBook/
    pip install -r requirements.txt 
    python install.py
    ```
+   > 如果需要本地部署,请在requirements.txt文件中添加:
+   ```bash
+   llama-index-llms-ipex-llm
+   ```
+   
    > 配置模型设置：下载模型权重后，通过修改config.json的以下代码片段来修改模型输入输出上下文长度：
    ```json
     {
@@ -91,10 +96,6 @@ AI-MapBook/
         }
     }
 
-   > 如果需要本地部署,请在requirements.txt文件中添加:
-   ```bash
-   llama-index-llms-ipex-llm
-   ```
    ```
 
 3. 启动后端服务：
