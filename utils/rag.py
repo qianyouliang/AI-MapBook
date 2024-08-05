@@ -7,7 +7,7 @@ from llama_index.core import StorageContext, SimpleDirectoryReader, Document,Vec
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.openai_like import OpenAILike
 from typing import List, Dict
-
+from modelscope import snapshot_download, AutoModel, AutoTokenizer
 
 
 class RAG:
@@ -16,6 +16,10 @@ class RAG:
         self.persist_dir = persist_dir
         self.embed_model_name = embed_model_name
         self.model_type = model_type
+        
+         # Check if the embedding model exists, if not, download it
+        if not os.path.exists(self.embed_model_name):
+            self.download_embedding_model()
         # Initialize embedding model
         self.embed_model = HuggingFaceEmbedding(model_name=self.embed_model_name)
         Settings.embed_model = self.embed_model
@@ -47,6 +51,13 @@ class RAG:
             )
             Settings.llm = self.llm   
 
+    def download_embedding_model(self):
+        """
+        Download the embedding model if it does not exist.
+        """
+        print(f"Downloading embedding model: {self.embed_model_name}")
+        snapshot_download("AI-ModelScope/bge-small-zh-v1.5", cache_dir='models', revision='master')
+        print(f"Embedding model downloaded and saved to: {self.embed_model_name}")
     # def split_pdf(self, file_stream: BytesIO, max_length: int = 5000):
     #     reader = PyPDF2.PdfFileReader(file_stream)
     #     text_chunks = []
