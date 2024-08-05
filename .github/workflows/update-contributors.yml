@@ -1,0 +1,20 @@
+name: Update Contributors
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-contributors:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Update Contributors
+        run: |
+          git log --format='%aN' | sort -u > CONTRIBUTORS.md
+          git add CONTRIBUTORS.md
+          git commit -m "Update CONTRIBUTORS.md"
+          git push origin main
