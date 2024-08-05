@@ -123,19 +123,3 @@ class Map:
         b.write(geojson_str.encode('utf-8'))
         b.seek(0)
         return b
-
-    def export_shp(self, crs_type="WGS-84"):
-        if crs_type == "WGS-84":
-            gdf_points = gpd.GeoDataFrame(
-                {'geometry': [Point(feat["geometry"]["coordinates"]) for feat in self.features]},
-                crs="EPSG:4326"
-            )
-        else:
-            gdf_points = gpd.GeoDataFrame(
-                {'geometry': [Point(feat["geometry"]["coordinates"]) for feat in self.features]},
-                crs="EPSG:3857"
-            )  # Baidu
-        b = BytesIO()
-        gdf_points.to_file(b, driver='ESRI Shapefile', encoding='utf-8')  # 确保使用 UTF-8 编码
-        b.seek(0)
-        return b
