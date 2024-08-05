@@ -1,22 +1,46 @@
 import streamlit as st
-import json
+import os
 from io import BytesIO
 from utils.geocode_utils import GeocodeUtils
 from utils.text_processing import FileProcessor
-from utils.ModelBack import LLM
+from utils.model_back import ModelBack
 from utils.map import Map
+from utils.rag import RAG
 
-def upload_and_process_file(llm,processing_info,row1_col1,row1_col2):
+def upload_and_process_file(llm,rag,processing_info,row1_col1,row1_col2,row2):
     uploaded_file = st.sidebar.file_uploader("上传文件", type=["pdf", "txt"])
+    # 确保 data 文件夹存在
+    data_dir = './data'
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
     if uploaded_file is not None:
         if uploaded_file != st.session_state.uploaded_file:
             st.session_state.uploaded_file = uploaded_file
             st.session_state.processed = False
             st.session_state.file_changed = True
             st.session_state.geo_info_list = []  # 重置geo_info_list
+            st.session_state.processed_event_ids = [] # 事件ID列表
+            # 获取文件名
+            file_name = uploaded_file.name
+            
+            # 构建保存路径
+            save_path = os.path.join(data_dir, file_name)
+            
+            # 将文件内容写入到指定位置
+            with open(save_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            with row1_col1:
+                st.success(f"文件已保存到: {save_path}")
+
         else:
             st.session_state.file_changed = False
-        
+
+        if st.session_state.isRAG and not st.session_state.RAGed:
+                rag.build_index_from_file()
+                st.session_state.RAGed = True
+                with row2:
+                    st.success("RAG索引已构建")
+
         if not st.session_state.processed:
             
             file_processor = FileProcessor()
@@ -28,18 +52,15 @@ def upload_and_process_file(llm,processing_info,row1_col1,row1_col2):
                 text_list = file_processor.extract_text_from_txt(file_stream)
             else:
                 st.error("不支持的文件类型")
-            
-            geo_info_list = st.session_state.geo_info_list  # 使用现有的geo_info_list
-            processed_event_ids = set()
-            
-            if llm:
+            if llm and not st.session_state.processed:
+                geo_info_list = st.session_state.geo_info_list
                 geocode_utils = GeocodeUtils(api_type=st.session_state.geocode_type, baidu_key=st.session_state.baidu_key, user_agent=st.session_state.username)
                 with row1_col1:
                     processing_info.info("正在处理文件，请稍候...")
                 
                 for text in text_list:
+                    processed_event_ids = []
                     event_list = llm.get_event_list(text)
-                    print(event_list)
                     if event_list:
                         for i, event in enumerate(event_list):
                             event_id = i  # 假设event对象有一个唯一的id属性
@@ -47,24 +68,26 @@ def upload_and_process_file(llm,processing_info,row1_col1,row1_col2):
                                 st.warning("事件缺少唯一标识符")
                                 continue
                             
-                            print(f"这是第 {i} 件事件，ID: {event_id}")
+                            print(f"这是第 {i} 事件，ID: {event_id}")
                             try:
                                 if event_id not in processed_event_ids:
 
                                     event_info = llm.process_event(event, language="英文")
                                     print(event_info)
                                     address = event_info["address"]
+                                    print(address,"地址")
                                     geocode_info = geocode_utils.geocode(address)
+                                    print(geocode_info,"地理编码")
                                     if geocode_info:
                                         event_info["geocode"] = geocode_info
-                                        processed_event_ids.add(event_id)  # 添加到已处理事件的集合中
+                                        processed_event_ids.append(event_id)  # 添加到已处理事件的集合中
                                     else:
                                         continue 
                             except Exception as e:
                                 print(f"处理事件时出错: {e}")
                                 continue
                             event_info["geocode"] = geocode_info
-                            processed_event_ids.add(event_id)
+                            processed_event_ids.append(event_id)
                             geo_info_list.append(event_info)
                             if event_info:
                                 display_event_info(event_info,row1_col1)
@@ -74,6 +97,9 @@ def upload_and_process_file(llm,processing_info,row1_col1,row1_col2):
                 st.session_state.processed = True
                 with row1_col1:
                     st.success("文件处理完成")
+        
+
+
                 
 def display_event_info(event_info,row1_col1):
     with row1_col1:
@@ -93,7 +119,7 @@ def update_map(m):
     if len(geo_info_list) > 0:
         st.sidebar.markdown("### 数据导出")
         export_geojson = st.sidebar.button("导出 GeoJSON")
-        export_shp = st.sidebar.button("导出 SHP")
+        # export_shp = st.sidebar.button("导出 SHP")
 
         if export_geojson:
             b = m.export_geojson()
@@ -104,18 +130,25 @@ def update_map(m):
                 mime="application/json"
             )
             
-        if export_shp:
-            b = m.export_shp(crs_type="WGS-84")
-            st.sidebar.download_button(
-                label="下载 SHP",
-                data=b,
-                file_name="data.zip",
-                mime="application/zip"
-            )
+        # if export_shp:
+        #     b = m.export_shp(crs_type="WGS-84")
+        #     st.sidebar.download_button(
+        #         label="下载 SHP",
+        #         data=b,
+        #         file_name="data.zip",
+        #         mime="application/zip"
+        #     )
 
 def output(chat_container,placeholder,response):
     with chat_container:
             placeholder.markdown(response + "▌")
+
+def toggle_isRAG():
+    st.session_state.isRAG = not st.session_state.isRAG
+
+def toggle_isSmartMap():
+    st.session_state.isSmartMap = not st.session_state.isSmartMap
+
 
 # 设置页面布局为宽屏模式
 st.set_page_config(layout="wide")
@@ -141,21 +174,26 @@ if 'selected_info' not in st.session_state:
     st.session_state.selected_info = None
 if 'model_type' not in st.session_state:
     st.session_state.model_type = "deepseek"
-
-
+# 初始化会话状态
+if 'isRAG' not in st.session_state:
+    st.session_state.isRAG = False
+if 'isSmartMap' not in st.session_state:
+    st.session_state.isSmartMap = False
+if 'RAGed' not in st.session_state:
+    st.session_state.RAGed = False
 
 def main():
     st.session_state.map = Map() # 地图类实例化
-    llm = LLM(api_key=st.session_state.api_key, model_type=st.session_state.model_type) # 模型初始化
+    llm = ModelBack(api_key=st.session_state.api_key, model_type=st.session_state.model_type) # 模型初始化
+    rag = RAG(api_key=st.session_state.api_key, model_type=st.session_state.model_type) # RAG模型初始化
     # 地图布局
-    st.title("LLM-MapBook")
-
+    st.title("AI-MapBook")
 
     tab1, tab2 = st.sidebar.tabs(["应用设置", "项目介绍"])
     with tab1:
         # 对话框和内容生成框
 
-        st.session_state.model_type = st.sidebar.selectbox("选择模型类型", ["deepseek","ipex_llm"], index=0)
+        st.session_state.model_type = st.sidebar.selectbox("选择模型类型(云端勿选ipex_llm)", ["deepseek","ipex_llm"], index=0)
         if st.session_state.model_type == "deepseek":
             st.session_state.api_key = st.sidebar.text_input("请输入deepseek_key", value=st.session_state.api_key, key="api_key_input")
 
@@ -170,9 +208,9 @@ def main():
     with tab2:
         st.markdown(
             '''
-            ## LLM-MapBook 项目介绍
+            ## AI-MapBook 项目介绍
 
-            **LLM-MapBook** 是一个利用大型语言模型（LLM）技术为故事讲述提供地图支持的项目。它通过LLM从书籍中提取地理信息和属性信息，结合地理编码得到地理坐标数据，并在交互式地图上进行可视化展示，为读者提供沉浸式的故事探索体验。
+            **AI-MapBook** 是一个利用大型语言模型（LLM）技术为故事讲述提供地图支持的项目。它通过LLM从书籍中提取地理信息和属性信息，结合地理编码得到地理坐标数据，并在交互式地图上进行可视化展示，为读者提供沉浸式的故事探索体验。
 
             该项目适用于故事创作者、教育工作者和地图爱好者，通过结合人工智能和地理空间技术，增强叙事效果。
 
@@ -186,7 +224,7 @@ def main():
                 - 教育工作者
                 - 地图爱好者
             
-            - **项目地址**： [LLM-MapBook](https://github.com/qianyouliang/AI-MapBook)
+            - **项目地址**： [ModelBack-MapBook](https://github.com/qianyouliang/AI-MapBook)
 
             ## 联系方式
 
@@ -199,14 +237,13 @@ def main():
             ''' 
         )
 
-
     # 初始化列布局
     # 第一行布局
-    container = st.container(border=True,height=1080)
+    container = st.container(border=True, height=1080)
     with container:
-        row1 = st.container(border=True,height=600)
+        row1 = st.container(border=True, height=600)
                 # 第二行布局
-        row2 = st.container(border=True,height=480)
+        row2 = st.container(border=True, height=480)
         with row1:
             row1_col1, row1_col2 = st.columns([3, 7])
             with row1_col1:
@@ -235,7 +272,6 @@ def main():
                     m.add_polyline()
                     m.display()
 
-
         with row2:
             # 创建一个容器来存放聊天记录
             chat_container = st.container(height=440)
@@ -252,28 +288,23 @@ def main():
             
                 # 添加多选框
                 # 添加复选框分组
-                st.markdown("""
-                <div class="checkbox-group">
-                    <label><input type="checkbox" class="stCheckbox"> RAG</label>
-                    <label><input type="checkbox" class="stCheckbox"> 智能地图</label>
-                </div>
-                <style>
-                .checkbox-group {
-                    display: flex;
-                    position:fixed !important;
-                    bottom:25vh;
-                    gap:1vw;
-                    right:5vw;
-                }
-                </style>
-                """, unsafe_allow_html=True)
+                st.checkbox("RAG", value=st.session_state.isRAG, help="启用RAG功能", key="RAG_checkbox", on_change=lambda: toggle_isRAG())
+                # st.checkbox("智能地图", value=st.session_state.isSmartMap, help="启用智能地图功能", key="smartMap_checkbox", on_change=lambda: toggle_isSmartMap())
 
                 prompt = st.chat_input("你想聊点什么?")
 
                 if prompt:
-                    st.session_state.chat_history.append({"role": "user", "content": prompt})
+                    print(st.session_state.isRAG,st.session_state.RAGed,"888")
                     with st.chat_message("user"):
                         st.markdown(prompt)
+                    if st.session_state.isRAG and st.session_state.RAGed:
+                        query = rag.query_index(prompt)
+                        prompt = f'''
+                            辅助信息：{query};
+                            ___________________
+                            用户问题：{prompt};
+                        '''
+                    st.session_state.chat_history.append({"role": "user", "content": prompt})
 
                     response = str()
                     with st.chat_message("assistant"):
@@ -289,14 +320,12 @@ def main():
                         elif st.session_state.model_type == 'deepseek':
                             for text in streamer:
                                 response += text.choices[0].delta.content
-                                output(chat_container,placeholder,response)
+                                output(chat_container, placeholder, response)
                     
                     st.session_state.chat_history.append({"role": "assistant", "content": response})
 
+    upload_and_process_file(llm, rag, processing_info, row1_col1, row1_col2,row2)
 
-    upload_and_process_file(llm,processing_info,row1_col1,row1_col2)
-    
-    
 # 添加CSS样式以实现事件名称字符限制和悬停显示
 st.markdown("""
     <style>
@@ -355,7 +384,7 @@ st.markdown("""
     }
     .stChatInput{
         position:fixed !important;
-        bottom:5vh;
+        bottom:5%;
         box-shadow:2px 2px 4px black !important;
         background-color:white !important;
     }
@@ -368,7 +397,19 @@ st.markdown("""
     .st-emotion-cache-gs4sfp{
         overflow:hidden !important;
     }
-
+    .st-emotion-cache-1bzkvni{
+        overflow:scroll;
+    }
+    .st-emotion-cache-13511py>.stCheckbox{
+        display:flex;
+        align-item:center;
+        position:fixed;
+        bottom:25%;
+        right:5%;
+        width:100px !important;
+        z-index:999;
+    }
+    
     </style>
 """, unsafe_allow_html=True)
 
