@@ -25,4 +25,4 @@ transformers_stream_generator==0.0.5
 llama_index-vector_stores-faiss==0.1.2
 llama_index-embeddings-huggingface
 llama-index-llms-openai-like
-
+ipex-llm==2.1.0b20240711
