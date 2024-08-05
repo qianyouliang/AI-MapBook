@@ -25,9 +25,9 @@ accelerate==0.23.0
 faiss-cpu==1.8.0.post1
 trl==0.9.6
 einops==0.8.0
+llama_index
 transformers_stream_generator==0.0.5
 llama_index-vector_stores-faiss==0.1.2
-llama_index
 llama_index-embeddings-huggingface
 llama-index-llms-openai-like
 llama-index-llms-ipex-llm
