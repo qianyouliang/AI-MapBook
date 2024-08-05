@@ -6,7 +6,6 @@ from llama_index.vector_stores.faiss import FaissVectorStore
 from llama_index.core import StorageContext, SimpleDirectoryReader, Document,VectorStoreIndex, load_index_from_storage, Settings
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.openai_like import OpenAILike
-from llama_index.llms.ipex_llm import IpexLLM
 from typing import List, Dict
 
 
@@ -35,6 +34,7 @@ class RAG:
 
             Settings.llm = self.llm   
         elif model_type == 'ipex_llm':
+            from llama_index.llms.ipex_llm import IpexLLM
             self.llm = IpexLLM.from_model_id_low_bit(
                 model_name="models/qwen2chat_int4",
                 tokenizer_name="models/qwen2chat_int4",
