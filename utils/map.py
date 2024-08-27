@@ -10,15 +10,9 @@ import math
 class Map:
     def __init__(self):
         self.tiles_options = {
-            "OpenStreetMap": "OpenStreetMap",
-            # "Stamen Terrain": "Stamen Terrain",
-            # "Stamen Toner": "Stamen Toner",
-            # "Stamen Watercolor": "Stamen Watercolor",
-            "CartoDB positron": "CartoDB positron",
             "CartoDB dark_matter": "CartoDB dark_matter",
-            # "Google Satellite": 'https://mt.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-            # "高德地图":"http://webst02.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}",
-            # "腾讯地图":"http://rt{s}.map.gtimg.com/realtimerender?z={z}&x={x}&y={y}&type=vector&style=0",
+            "OpenStreetMap": "OpenStreetMap",
+            "CartoDB positron": "CartoDB positron",
         }
         self.map = None
         self.features = []
