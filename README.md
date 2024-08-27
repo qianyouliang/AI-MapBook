@@ -78,6 +78,7 @@ AI-MapBook/
    ```bash
    llama-index-llms-ipex-llm
    ```
+   若是模型安装报错，则需要保证第三方模块`transformers==4.37.1`;
    
    > 配置模型设置：下载模型权重后，通过修改config.json的以下代码片段来修改模型输入输出上下文长度：
    ```json
