@@ -8,6 +8,8 @@ from ipex_llm.transformers import AutoModelForCausalLM
 from transformers import AutoTokenizer,TextIteratorStreamer
 from threading import Thread
 import subprocess
+from utils.geoInfo import GeoInfo
+from dotenv import load_dotenv
 
 # # 设置环境变量 OMP_NUM_THREADS 为 8，用于控制 OpenMP 线程数
 os.environ["OMP_NUM_THREADS"] = "8"
@@ -15,17 +17,32 @@ os.environ["OMP_NUM_THREADS"] = "8"
 
 class ModelBack:
     def __init__(self, api_key: str = '', file_path: str = '../event_list.json', model_type: str = "deepseek", model_path: str = 'models/qwen2chat_int4'):
+        # 加载环境变量
+        load_dotenv()
+        
         self.file_path = file_path
         self.model_type = model_type
         self.res = ''
-        self.model_path = model_path  # 指定模型路径
+        self.model_path = model_path
 
         if self.model_type == 'deepseek':
             base_url = "https://api.deepseek.com"
             self.client = OpenAI(api_key=api_key, base_url=base_url)
+        elif self.model_type == 'qwen2.5-3b':
+            # 从环境变量获取配置
+            app_id = os.getenv('APP_ID')
+            qwen_api_key = os.getenv('QWEN_API_KEY')
+            api_secret = os.getenv('API_SECRET')
+            service_id = os.getenv('SERVICE_ID')
+            patch_id = os.getenv('PATCH_ID')
+            
+            # 验证所有必需的环境变量都存在
+            if not all([app_id, qwen_api_key, api_secret, service_id, patch_id]):
+                raise ValueError("Missing required Qwen API configuration in .env file")
+                
+            self.client = GeoInfo(app_id, qwen_api_key, api_secret, service_id, patch_id)
         elif self.model_type == 'ipex_llm':
             if not self.check_model_exists(self.model_path):
-                
                 self.install_model()
             self.model = AutoModelForCausalLM.load_low_bit(
                 model_path, trust_remote_code=True)
@@ -42,7 +59,7 @@ class ModelBack:
             xxx于xxx时间在xxx地做了xxx事情，造成了xxx影响；
             ```
             不同的事件严格要求使用4个-组成的间隔符号 --- 划分开来，完整且精炼的语言进行描述。
-            好的，请根据以下用户输入的问题进行分析划分事件,严格完整输出，上面的案例只是格式举例，实际输出请根据以下的内容：
+            好的，请根据以下���户输入的问题进行分析划分事件,严格完整输出，上面的案例只是格式举例，实际输出请根据以下的内容：
                 {text}
             '''
         if self.model_type == 'deepseek':
@@ -56,6 +73,24 @@ class ModelBack:
                 stream=False
             )
             eventList = ModelBack.split_event(response.choices[0].message.content)
+            return eventList
+        elif self.model_type == 'qwen2.5-3b':
+            import asyncio
+            # 修改提示以确保输出格式正确
+            formatted_prompt = f'''
+                您是一名地理分析师，请严格按照以下格式分析文本中的事件：
+                1. 每个事件必须包含地点和事件内容
+                2. 事件之间使用 "---" 分隔
+                3. 示例格式：
+                在北京举行了开幕式，展示了中国传统文化。
+                ---
+                在上海召开了经济峰会，讨论了未来发展方向。
+                
+                请分析以下文本：
+                {text}
+                '''
+            response = asyncio.run(self.client.chat(formatted_prompt))
+            eventList = ModelBack.split_event(response)
             return eventList
         elif self.model_type == 'ipex_llm':
             response = self.ipex_llm_generate(prompt)
@@ -71,7 +106,7 @@ class ModelBack:
             "event_title": "有关ABC公司新产品的情报",
             "event_type": "市场情报",
             "address": "beijing",
-            "event_content": "根据对社交媒体平台的监听和分析，我们发现了以下有关ABC公司新产品的情报：1. ABC公司将在本月底发布其新的智能手机，该手机将具有更快的处理器、更大的内存和更长的电池寿命。2. 该新产品将是ABC公司在智能手机市场上的重要攻势，旨在与竞争对手的旗舰产品竞争。3. 在社交媒体上，用户对该新产品的期待度较高，有些用户甚至表示愿意预订该产品。",
+            "event_content": "根据对社交媒体平台的监听和分析，我们发现了以下有关ABC公司新产品的情报：1. ABC公司将在本月底发布其新的智能手机，该手机将具有更快的处理器、更大的内存和更长的电池寿命。2. 该新产品将是ABC公司在智能手机市场上的���要攻势，旨在与竞争对手的旗舰产品竞争。3. 在社交媒体上，用户该新产品的期待度较高，有些用户甚至表示愿意预订该产品。",
             "keys": ["Twitter", "Facebook", "LinkedIn"],
             ```
             生成的address要求：
@@ -87,7 +122,7 @@ class ModelBack:
             好的，请根据以下用户输入的问题进行分析生成回答，address字段内容严格使用{language}输出，其他字段内容中文输出：
                 {event_text}
 
-                一定要符合上面要求，一个事件仅用一个地址来表达，不能同时用多个地址描述
+                一定要符上面要求，一个事件仅用一个地址来表达，不能同时用多个地址描述
             '''
 
         if self.model_type == 'deepseek':
@@ -102,6 +137,57 @@ class ModelBack:
             )
             event = ModelBack.parse_event(response.choices[0].message.content)
             return event
+        elif self.model_type == 'qwen2.5-3b':
+            import asyncio
+            # 修改提示以确保输出格式正确
+            formatted_prompt = f'''
+                            您是一名地理分析师，您的任务是分析给定的历史或新闻情报，定位事件的内容，发生的位置，时间，相关的人物和历史事件，然后给出事件的地理描述，作为事件的属性信息。
+            你要生成的内容要包裹在```event```中，案例格式如下，要包含以下字段：
+            ```event
+            {{
+             "event_title": "有关ABC公司新产品的情报",
+            "event_type": "市场情报",
+            "address": "beijing",
+            "event_content": "根据对社交媒体平台的监听和分析，我们发现了以下有关ABC公司新产品的情报：1. ABC公司将在本月底发布其新的智能手机，该手机将具有更快的处理器、更大的内存和更长的电池寿命。2. 该新产品将是ABC公司在智能手机市场上的重要攻势，旨在与竞争对手的旗舰产品竞争。3. 在社交媒体上，用户该新产品的期待度较高，有些用户甚至表示愿意预订该产品。",
+            "keys": ["Twitter", "Facebook", "LinkedIn"],
+            }}
+           
+            ```
+            生成的address要求：
+            - 严格符合地理编码和OSM的命名规范，
+            - 地址address严格使用英语，
+            - 过去的地址使用现在的地址来表示，不然地理编码不能识别；
+            - 符合官方地名，严格地理编码器能识别；
+            - address要求真实地址，地图可查。不能是模糊的地名，而是具体详细，地图上可查的官方地址，例如 北京，而不是 北京周边，例如 德国 而不是 德国和法国；
+            - event_content部分是一个主要内容简介，限制200字内；
+            - 生成的内容是一个json格式 一定要用大括号符号扩住,严格要求为json格式;
+            - 将扩住后的生成的json情报信息包裹在```event```中，要求完整且精炼。
+            - 严格要求一个事件的address仅用一个地址来表达，不能同时用多个地址描述,例如北京和上海；地点不能用and等类似字符描述多个地点，而是以单个标准格式的地址来描述，例如具体的城市名；
+            好的，请根据以下用户输入的问题进行分析生成回答，address字段内容严格使用{language}输出，其他字段内容中文输出：
+                {event_text}
+
+                一定要符上面要求，一个事件仅用一个地址来表达，不能同时用多个地址描述
+         {event_text}
+                '''
+            response = asyncio.run(self.client.chat(formatted_prompt))
+            try:
+                event = ModelBack.parse_event(response)
+                # 验证必要字段
+                required_fields = ['event_title', 'event_type', 'address', 'event_content', 'keys']
+                if not all(field in event for field in required_fields):
+                    raise ValueError("Missing required fields in event")
+                return event
+            except Exception as e:
+                print(f"Error parsing event: {e}")
+                print(f"Raw response: {response}")
+                # 返回一个基本的错误事件对象
+                return {
+                    "event_title": "解析错误",
+                    "event_type": "错误",
+                    "address": "error",
+                    "event_content": f"事件解析失败: {str(e)}",
+                    "keys": ["error"]
+                }
         elif self.model_type == 'ipex_llm':
             response = self.ipex_llm_generate(prompt)
             print("返回的事件", response)
@@ -156,6 +242,34 @@ class ModelBack:
             streamer = self.ipex_llm_generate_stream(messages, placeholder)
         elif self.model_type == 'deepseek':
             streamer = self.deepseek_generate_stream(messages, placeholder)
+        elif self.model_type == 'qwen2.5-3b':
+            # 将消息列表转换为单个字符串
+            last_message = messages[-1]["content"] if messages else ""
+            import asyncio
+            response = asyncio.run(self.client.chat(last_message))
+            # 模拟流式输出
+            class QwenStreamer:
+                def __init__(self, response):
+                    self.response = response
+                    self.position = 0
+                
+                def __iter__(self):
+                    return self
+                
+                def __next__(self):
+                    if self.position >= len(self.response):
+                        raise StopIteration
+                    chunk = self.response[self.position:self.position + 1]
+                    self.position += 1
+                    return type('Response', (), {
+                        'choices': [type('Choice', (), {
+                            'delta': type('Delta', (), {
+                                'content': chunk
+                            })
+                        })]
+                    })
+            
+            return QwenStreamer(response)
         return streamer
 
     @staticmethod

@@ -62,6 +62,7 @@ AI-MapBook/
 ## 安装与启动
 > 项目部署推荐使用全局科学环境！！！😉😉
 > 推荐使用在线[API](https://platform.deepseek.com/usage)
+> 支持调用讯飞星火[API](https://console.xfyun.cn/services/bm35)
 1. 进入项目目录：
    ```sh
    cd AI-MapBook

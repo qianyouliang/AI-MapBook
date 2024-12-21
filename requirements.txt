@@ -1,5 +1,5 @@
 geopy==2.4.1
-openai==1.35.13
+openai
 PyPDF2
 streamlit
 streamlit_folium

@@ -26,7 +26,7 @@ def upload_and_process_file(llm,rag,processing_info,row1_col1,row1_col2,row2):
             # 构建保存路径
             save_path = os.path.join(data_dir, file_name)
             
-            # 将文件内容写入到指定位置
+            # 将文件内容写��到指定位置
             with open(save_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             with row1_col1:
@@ -105,7 +105,7 @@ def display_event_info(event_info,row1_col1):
     with row1_col1:
         truncated_title = event_info["event_title"] if len(event_info["event_title"]) <= 6 else event_info["event_title"][:6] + "..."
         with st.expander(truncated_title):
-            st.json(event_info)  # 以JSON格式显示事件详细信息
+            st.json(event_info)  # 以JSON格式显��事件详细信息
                 
 def update_map(m):
     geo_info_list = st.session_state.geo_info_list
@@ -139,9 +139,9 @@ def update_map(m):
         #         mime="application/zip"
         #     )
 
-def output(chat_container,placeholder,response):
+def output(chat_container, placeholder, response):
     with chat_container:
-            placeholder.markdown(response + "▌")
+        placeholder.markdown(response + "▌")
 
 def toggle_isRAG():
     st.session_state.isRAG = not st.session_state.isRAG
@@ -193,7 +193,7 @@ def main():
     with tab1:
         # 对话框和内容生成框
 
-        st.session_state.model_type = st.sidebar.selectbox("选择模型类型(云端勿选ipex_llm)", ["deepseek","ipex_llm"], index=0)
+        st.session_state.model_type = st.sidebar.selectbox("选择模型类型", ["deepseek","qwen2.5-3b"], index=0)
         if st.session_state.model_type == "deepseek":
             st.session_state.api_key = st.sidebar.text_input("请输入deepseek_key", value=st.session_state.api_key, key="api_key_input")
 
@@ -313,11 +313,13 @@ def main():
                         if st.session_state.model_type == 'ipex_llm':
                             for text in streamer:
                                 response += text
-                                # 更新聊天记录
                                 with chat_container:
                                     placeholder.markdown(response + "▌")
-
                         elif st.session_state.model_type == 'deepseek':
+                            for text in streamer:
+                                response += text.choices[0].delta.content
+                                output(chat_container, placeholder, response)
+                        elif st.session_state.model_type == 'qwen2.5-3b':
                             for text in streamer:
                                 response += text.choices[0].delta.content
                                 output(chat_container, placeholder, response)

@@ -4,6 +4,7 @@ LLM-MapBook/*
 dash/*
 qwen2chat_src/*
 streamlit/*
+models/*
 __pycache__/*
 *.pyc
 *.pyo
