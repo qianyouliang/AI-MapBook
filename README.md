@@ -2,7 +2,7 @@
 
 ## 项目活动
 
-Datawhale AI 夏令营😀
+Datawhale AI 夏/冬令营😀
 
 ## 项目介绍
 
