@@ -4,6 +4,7 @@ PyPDF2
 streamlit
 streamlit_folium
 folium
+websockets
 requests
 geopandas
 shapely
