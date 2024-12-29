@@ -60,7 +60,7 @@ AI-MapBook/
 ```
 
 ## 安装与启动
-> 项目部署推荐使用全局科学环境！！！😉😉
+> 项目部署使用全局科学环境！！！😉😉
 > 推荐使用在线[API](https://platform.deepseek.com/usage)
 > 支持调用讯飞星火[API](https://console.xfyun.cn/services/bm35)
 1. 进入项目目录：
@@ -75,30 +75,18 @@ AI-MapBook/
    pip install -r requirements.txt 
    python install.py
    ```
-   > 如果需要本地部署,请在requirements.txt文件中添加:
-   ```bash
-   llama-index-llms-ipex-llm
-   ```
-   若是模型安装报错，则需要保证第三方模块`transformers==4.37.1`;
-   
-   > 配置模型设置：下载模型权重后，通过修改config.json的以下代码片段来修改模型输入输出上下文长度：
-   ```json
-    {
-        "architectures": [
-            "Qwen2ForCausalLM"
-        ],
-        // ...
-        "vocab_size": 152064,
+3.在配置文件中配置自己的deepseekAPIkey:
 
-        // adding the following snippets
-        "rope_scaling": {
-            "factor": 4.0,
-            "original_max_position_embeddings": 32768,
-            "type": "yarn"
-        }
-    }
-
-   ```
+```sh
+APP_ID=a947a47f
+QWEN_API_KEY=cf9fe03690faee5d185fcd753052d652
+API_SECRET=ZDE5ODRkNThmNTgwMWIzYjZlMDBlMGU1
+SERVICE_ID=xsqwen2d53b
+PATCH_ID=1869819130578763776 
+BASE_URL= "https://api.deepseek.com"
+DEEPSEEK_API_KEY=your_deepseek_api_key
+```
+> 这里使用的qwen2.5-3B模型是作者讯飞微调的模型，额度过期后就不能使用了，可以配置自己微调的模型；如果没有推荐直接网页端输入自己的deepseek api使用;
 
 3. 启动后端服务：
    ```sh
