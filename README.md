@@ -30,6 +30,8 @@ AI-MapBook 是一个利用LLM技术为故事讲述提供地图支持的项目。
 ## 主要思路
 
 ![image](https://github.com/user-attachments/assets/08ef18dc-7cac-4681-9558-d291b184c2c6)
+![image](https://github.com/user-attachments/assets/1aafced9-7d18-482c-b39f-e1ccefbc2f0b)
+![image](https://github.com/user-attachments/assets/42c9736d-666d-4fb0-8373-55fbc65a0a04)
 
 
 1. **数据提取🏆**: 使用LLM从故事书籍中提取地理信息和属性信息。
