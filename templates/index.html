@@ -307,11 +307,19 @@
             50% { opacity: 0.5; }
         }
         
-        /* 加载动画 */
+        /* 加载动画 - 绝对定位 */
         .loading {
             display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             text-align: center;
             padding: 2rem;
+            background: rgba(10, 10, 15, 0.9);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            z-index: 1000;
         }
         
         .loading.active {
@@ -498,10 +506,13 @@
         <div class="status-item">
             <span id="statusText">等待文件上传...</span>
         </div>
+        <div class="status-item">
+            <button class="btn-chat" onclick="toggleChat()" style="background: transparent; border: 1px solid var(--secondary); color: var(--secondary); padding: 5px 15px; cursor: pointer; border-radius: 3px;">💬 聊天</button>
+        </div>
     </div>
     
-    <!-- 聊天机器人 -->
-    <div class="chat-container" id="chatContainer">
+    <!-- 聊天机器人 - 默认显示 -->
+    <div class="chat-container active" id="chatContainer">
         <div class="chat-header">
             <span>🤖 MapAgent</span>
             <span style="cursor: pointer;" onclick="toggleChat()">✕</span>
