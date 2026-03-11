@@ -1,419 +1,329 @@
-import streamlit as st
+"""
+Flask 应用入口
+AI-MapBook - 复古科技风格
+"""
 import os
-from io import BytesIO
-from utils.geocode_utils import GeocodeUtils
-from utils.text_processing import FileProcessor
-from utils.model_back import ModelBack
-from utils.map import Map
-from utils.rag import RAG
+from flask import Flask, render_template, request, jsonify, send_from_directory
+from werkzeug.utils import secure_filename
+import uuid
 
-def upload_and_process_file(llm,rag,processing_info,row1_col1,row1_col2,row2):
-    uploaded_file = st.sidebar.file_uploader("上传文件", type=["pdf", "txt"])
-    # 确保 data 文件夹存在
-    data_dir = './data'
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir)
-    if uploaded_file is not None:
-        if uploaded_file != st.session_state.uploaded_file:
-            st.session_state.uploaded_file = uploaded_file
-            st.session_state.processed = False
-            st.session_state.file_changed = True
-            st.session_state.geo_info_list = []  # 重置geo_info_list
-            st.session_state.processed_event_ids = [] # 事件ID列表
-            # 获取文件名
-            file_name = uploaded_file.name
-            
-            # 构建保存路径
-            save_path = os.path.join(data_dir, file_name)
-            
-            # 将文件内容写��到指定位置
-            with open(save_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            with row1_col1:
-                st.success(f"文件已保存到: {save_path}")
+# 导入核心模块
+from core.llm import LLMModel
+from core.rag import RAGModel
+from core.geocode import GeocodeModel
+from config.settings import config
 
-        else:
-            st.session_state.file_changed = False
+# 初始化 Flask
+app = Flask(__name__, 
+    template_folder='templates',
+    static_folder='static')
+app.config['SECRET_KEY'] = os.urandom(24)
+app.config['UPLOAD_FOLDER'] = config.DATA_DIR
+app.config['MAX_CONTENT_LENGTH'] = config.MAX_FILE_SIZE
 
-        if st.session_state.isRAG and not st.session_state.RAGed:
-                rag.build_index_from_file()
-                st.session_state.RAGed = True
-                with row2:
-                    st.success("RAG索引已构建")
+# 初始化目录
+config.init_dirs()
 
-        if not st.session_state.processed:
-            
-            file_processor = FileProcessor()
-            file_content = uploaded_file.read()
-            file_stream = BytesIO(file_content)
-            if uploaded_file.name.endswith('.pdf'):
-                text_list = file_processor.extract_text_from_pdf(file_stream)
-            elif uploaded_file.name.endswith('.txt'):
-                text_list = file_processor.extract_text_from_txt(file_stream)
-            else:
-                st.error("不支持的文件类型")
-            if llm and not st.session_state.processed:
-                geo_info_list = st.session_state.geo_info_list
-                geocode_utils = GeocodeUtils(api_type=st.session_state.geocode_type, baidu_key=st.session_state.baidu_key, user_agent=st.session_state.username)
-                with row1_col1:
-                    processing_info.info("正在处理文件，请稍候...")
-                
-                for text in text_list:
-                    processed_event_ids = []
-                    event_list = llm.get_event_list(text)
-                    if event_list:
-                        for i, event in enumerate(event_list):
-                            event_id = i  # 假设event对象有一个唯一的id属性
-                            if event_id is None:
-                                st.warning("事件缺少唯一标识符")
-                                continue
-                            
-                            print(f"这是第 {i} 事件，ID: {event_id}")
-                            try:
-                                if event_id not in processed_event_ids:
+# 全局模型实例
+llm_model = None
+rag_model = None
+geocode_model = None
 
-                                    event_info = llm.process_event(event, language="英文")
-                                    print(event_info)
-                                    address = event_info["address"]
-                                    print(address,"地址")
-                                    geocode_info = geocode_utils.geocode(address)
-                                    print(geocode_info,"地理编码")
-                                    if geocode_info:
-                                        event_info["geocode"] = geocode_info
-                                        processed_event_ids.append(event_id)  # 添加到已处理事件的集合中
-                                    else:
-                                        continue 
-                            except Exception as e:
-                                print(f"处理事件时出错: {e}")
-                                continue
-                            event_info["geocode"] = geocode_info
-                            processed_event_ids.append(event_id)
-                            geo_info_list.append(event_info)
-                            if event_info:
-                                display_event_info(event_info,row1_col1)
-                
-                processing_info.empty()  # 清空处理信息
-                st.session_state.geo_info_list = geo_info_list  # 保存更新后的geo_info_list
-                st.session_state.processed = True
-                with row1_col1:
-                    st.success("文件处理完成")
-        
+# 当前处理的数据
+current_geo_data = []
 
 
-                
-def display_event_info(event_info,row1_col1):
-    with row1_col1:
-        truncated_title = event_info["event_title"] if len(event_info["event_title"]) <= 6 else event_info["event_title"][:6] + "..."
-        with st.expander(truncated_title):
-            st.json(event_info)  # 以JSON格式显��事件详细信息
-                
-def update_map(m):
-    geo_info_list = st.session_state.geo_info_list
-    if len(geo_info_list) > 0:
-        for idx, info in enumerate(geo_info_list):
-            geo_info = info["geocode"]
-            m.add_marker(info, geo_info)
-    else:
-        pass
-    # 导出按钮
-    if len(geo_info_list) > 0:
-        st.sidebar.markdown("### 数据导出")
-        export_geojson = st.sidebar.button("导出 GeoJSON")
-        # export_shp = st.sidebar.button("导出 SHP")
-
-        if export_geojson:
-            b = m.export_geojson()
-            st.sidebar.download_button(
-                label="下载 GeoJSON",
-                data=b,
-                file_name="data.geojson",
-                mime="application/json"
-            )
-            
-        # if export_shp:
-        #     b = m.export_shp(crs_type="WGS-84")
-        #     st.sidebar.download_button(
-        #         label="下载 SHP",
-        #         data=b,
-        #         file_name="data.zip",
-        #         mime="application/zip"
-        #     )
-
-def output(chat_container, placeholder, response):
-    with chat_container:
-        placeholder.markdown(response + "▌")
-
-def toggle_isRAG():
-    st.session_state.isRAG = not st.session_state.isRAG
-
-def toggle_isSmartMap():
-    st.session_state.isSmartMap = not st.session_state.isSmartMap
+def get_llm():
+    """获取 LLM 实例"""
+    global llm_model
+    if llm_model is None:
+        try:
+            llm_model = LLMModel()
+        except Exception as e:
+            print(f"LLM 初始化失败: {e}")
+    return llm_model
 
 
-# 设置页面布局为宽屏模式
-st.set_page_config(layout="wide")
-
-# 使用session_state来保存状态
-if 'username' not in st.session_state:
-    st.session_state.username = "GISerLiu"
-if 'api_key' not in st.session_state:
-    st.session_state.api_key = ""
-if 'baidu_key' not in st.session_state:
-    st.session_state.baidu_key = ""
-if 'geocode_type' not in st.session_state:
-    st.session_state.geocode_type = "free"
-if 'uploaded_file' not in st.session_state:
-    st.session_state.uploaded_file = None
-if 'file_changed' not in st.session_state:
-    st.session_state.file_changed = False
-if 'processed' not in st.session_state:
-    st.session_state.processed = False
-if 'geo_info_list' not in st.session_state:
-    st.session_state.geo_info_list = []
-if 'selected_info' not in st.session_state:
-    st.session_state.selected_info = None
-if 'model_type' not in st.session_state:
-    st.session_state.model_type = "deepseek"
-# 初始化会话状态
-if 'isRAG' not in st.session_state:
-    st.session_state.isRAG = False
-if 'isSmartMap' not in st.session_state:
-    st.session_state.isSmartMap = False
-if 'RAGed' not in st.session_state:
-    st.session_state.RAGed = False
-
-def main():
-    st.session_state.map = Map() # 地图类实例化
-    llm = ModelBack(api_key=st.session_state.api_key, model_type=st.session_state.model_type) # 模型初始化
-    rag = RAG(api_key=st.session_state.api_key, model_type=st.session_state.model_type) # RAG模型初始化
-    # 地图布局
-    st.title("AI-MapBook")
-
-    tab1, tab2 = st.sidebar.tabs(["应用设置", "项目介绍"])
-    with tab1:
-        # 对话框和内容生成框
-
-        st.session_state.model_type = st.sidebar.selectbox("选择模型类型", ["deepseek","qwen2.5-3b"], index=0)
-        if st.session_state.model_type == "deepseek":
-            st.session_state.api_key = st.sidebar.text_input("请输入deepseek_key", value=st.session_state.api_key, key="api_key_input")
+def get_rag():
+    """获取 RAG 实例"""
+    global rag_model
+    if rag_model is None:
+        rag_model = RAGModel()
+    return rag_model
 
 
-        st.session_state.geocode_type = st.sidebar.selectbox("地理编码类型", ["free", "baidu"], index=0)
-        if st.session_state.geocode_type == "baidu":
-            st.session_state.baidu_key = st.sidebar.text_input("百度地图API", value=st.session_state.baidu_key, key="baidu_key_input")
-        else:
-            st.session_state.username = st.sidebar.text_input("请输入用户名", value=st.session_state.username, key="username_input")
+def get_geocode(api_type="free", baidu_key=None):
+    """获取地理编码实例"""
+    global geocode_model
+    if geocode_model is None or geocode_model.api_type != api_type:
+        geocode_model = GeocodeModel(api_type=api_type, baidu_key=baidu_key)
+    return geocode_model
 
 
-    with tab2:
-        st.markdown(
-            '''
-            ## AI-MapBook 项目介绍
+# 路由
+@app.route('/')
+def index():
+    """首页"""
+    return render_template('index.html')
 
-            **AI-MapBook** 是一个利用大型语言模型（LLM）技术为故事讲述提供地图支持的项目。它通过LLM从书籍中提取地理信息和属性信息，结合地理编码得到地理坐标数据，并在交互式地图上进行可视化展示，为读者提供沉浸式的故事探索体验。
 
-            该项目适用于故事创作者、教育工作者和地图爱好者，通过结合人工智能和地理空间技术，增强叙事效果。
-
-            - **技术特点**：
-                - 利用LLM提取地理信息和属性信息
-                - 结合地理编码得到地理坐标数据
-                - 在交互式地图上进行可视化展示
-
-            - **应用场景**：
-                - 故事创作者
-                - 教育工作者
-                - 地图爱好者
-            
-            - **项目地址**： [ModelBack-MapBook](https://github.com/qianyouliang/AI-MapBook)
-
-            ## 联系方式
-
-            - **GitHub**: [qianyouliang](https://github.com/qianyouliang)
-            - **兴趣领域**: GIS, RS, GNSS, AI
-            - **当前学习**: GIS, AI
-            - **合作意向**: GIS, 遥感, AI
-            - **电子邮件**: [qianyouliang123@gmail.com](mailto:qianyouliang123@gmail.com)
-            - **CSDN博客**: [CSDN](https://blog.csdn.net/qq_45590504)
-            ''' 
-        )
-
-    # 初始化列布局
-    # 第一行布局
-    container = st.container(border=True, height=1080)
-    with container:
-        row1 = st.container(border=True, height=600)
-                # 第二行布局
-        row2 = st.container(border=True, height=480)
-        with row1:
-            row1_col1, row1_col2 = st.columns([3, 7])
-            with row1_col1:
-                st.markdown("#### 事件列表")
-                processing_info = st.empty()
-            
-            with row1_col2:
-                st.markdown("#### 地图")
-                st.markdown("""
-                <style>
-                .st-emotion-cache-veb430{
-                overflow:hidden !important;
-                }
-                .st-emotion-cache-1m6pjz2{
-                overflow:hidden !important;
-                }
-                </style>
-            """, unsafe_allow_html=True)
-                m = st.session_state.map
-                if m:
-                    tiles_options = m.tiles_options
-                    selected_tile_name = st.selectbox("选择地图底图", list(tiles_options.keys()), index=0)
-                    selected_tile = tiles_options[selected_tile_name]
-                    m.init_map(selected_tile=selected_tile)
-                    update_map(m)
-                    m.add_polyline()
-                    m.display()
-
-        with row2:
-            # 创建一个容器来存放聊天记录
-            chat_container = st.container(height=440)
-
-            # 在聊天容器中显示聊天记录
-            with chat_container:
-                st.markdown("#### MapAgent")
-                if "chat_history" not in st.session_state:
-                    st.session_state.chat_history = []
-
-                for message in st.session_state.chat_history:
-                    with st.chat_message(message["role"]):
-                        st.markdown(message["content"])
-            
-                # 添加多选框
-                # 添加复选框分组
-                st.checkbox("RAG", value=st.session_state.isRAG, help="启用RAG功能", key="RAG_checkbox", on_change=lambda: toggle_isRAG())
-                # st.checkbox("智能地图", value=st.session_state.isSmartMap, help="启用智能地图功能", key="smartMap_checkbox", on_change=lambda: toggle_isSmartMap())
-
-                prompt = st.chat_input("你想聊点什么?")
-
-                if prompt:
-                    print(st.session_state.isRAG,st.session_state.RAGed,"888")
-                    with st.chat_message("user"):
-                        st.markdown(prompt)
-                    if st.session_state.isRAG and st.session_state.RAGed:
-                        query = rag.query_index(prompt)
-                        prompt = f'''
-                            辅助信息：{query};
-                            ___________________
-                            用户问题：{prompt};
-                        '''
-                    st.session_state.chat_history.append({"role": "user", "content": prompt})
-
-                    response = str()
-                    with st.chat_message("assistant"):
-                        placeholder = st.empty()
-                        streamer = llm.chat(st.session_state.chat_history, placeholder)
-                        if st.session_state.model_type == 'ipex_llm':
-                            for text in streamer:
-                                response += text
-                                with chat_container:
-                                    placeholder.markdown(response + "▌")
-                        elif st.session_state.model_type == 'deepseek':
-                            for text in streamer:
-                                response += text.choices[0].delta.content
-                                output(chat_container, placeholder, response)
-                        elif st.session_state.model_type == 'qwen2.5-3b':
-                            for text in streamer:
-                                response += text.choices[0].delta.content
-                                output(chat_container, placeholder, response)
-                    
-                    st.session_state.chat_history.append({"role": "assistant", "content": response})
-
-    upload_and_process_file(llm, rag, processing_info, row1_col1, row1_col2,row2)
-
-# 添加CSS样式以实现事件名称字符限制和悬停显示
-st.markdown("""
-    <style>
-    .main {
-    height:100%;
-    overflow-y: hidden !important;
-    }
-    .block-container{
-        padding:1vh 1vw !important;
-        overflow: hidden; /* 隐藏滚动条 */
-        
-    }
-    body {
-        height:100vh;
-        overflow: hidden; /* 隐藏滚动条 */
-    }
-    #map_div {
-        width: 100% !important;
-        height:50% !important;
-        
-    }
-    .stButton button {
-        width: 100%;
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-        
-    }
-    .stButton button:hover {
-        overflow: visible;
-        white-space: normal;
-    }
-    .fixed-sidebar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 20%;
-        height: 100%;
-        overflow-y: auto;
-        overflow: hidden; /* 隐藏滚动条 */
-    }
-    .fixed-content {
-        margin-left: 20%;
-        width: 80%;
-        height: 100%;
-        overflow-y: auto;
-    }
-    .st-emotion-cache-1bcsrn5{
-        height:50vh !important;
-    }
-    .st-emotion-cache-1lx0qav{
-        position:absolutely !important;
-        bottom:0 !important;
-        left:50% !important;
-        transform:translateX(-50%);
-    }
-    .stChatInput{
-        position:fixed !important;
-        bottom:5%;
-        box-shadow:2px 2px 4px black !important;
-        background-color:white !important;
-    }
-    textarea{
-        color:#000 !important;
-    }
-    .st-emotion-cache-3sz198,.st-emotion-cache-1ucia2i{
-        overflow:hidden !important;
-    }
-    .st-emotion-cache-gs4sfp{
-        overflow:hidden !important;
-    }
-    .st-emotion-cache-1bzkvni{
-        overflow:scroll;
-    }
-    .st-emotion-cache-13511py>.stCheckbox{
-        display:flex;
-        align-item:center;
-        position:fixed;
-        bottom:25%;
-        right:5%;
-        width:100px !important;
-        z-index:999;
-    }
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    """文件上传"""
+    if 'file' not in request.files:
+        return jsonify({'error': '没有文件'}), 400
     
-    </style>
-""", unsafe_allow_html=True)
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': '未选择文件'}), 400
+    
+    # 保存文件
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
+    
+    return jsonify({
+        'success': True,
+        'filename': filename,
+        'filepath': filepath
+    })
 
 
-main()
+@app.route('/api/process', methods=['POST'])
+def process_file():
+    """处理文件"""
+    global current_geo_data
+    
+    data = request.json
+    filename = data.get('filename')
+    use_rag = data.get('use_rag', False)
+    geocode_type = data.get('geocode_type', 'free')
+    baidu_key = data.get('baidu_key', '')
+    
+    if not filename:
+        return jsonify({'error': '没有文件名'}), 400
+    
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(filepath):
+        return jsonify({'error': '文件不存在'}), 400
+    
+    # 获取模型
+    llm = get_llm()
+    geocode = get_geocode(geocode_type, baidu_key)
+    
+    if not llm:
+        return jsonify({'error': 'LLM 未初始化，请检查 API Key'}), 500
+    
+    # 读取文件
+    try:
+        if filename.endswith('.pdf'):
+            from utils.pdf_reader import read_pdf
+            text_list = read_pdf(filepath)
+        else:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                text = f.read()
+                text_list = [text[i:i+5000] for i in range(0, len(text), 5000)]
+    except Exception as e:
+        return jsonify({'error': f'读取文件失败: {str(e)}'}), 500
+    
+    # 处理文本
+    current_geo_data = []
+    
+    for text in text_list:
+        events = llm.get_event_list(text)
+        
+        for event in events:
+            event_info = llm.process_event(event)
+            
+            # 地理编码
+            if event_info.get('address'):
+                geo_result = geocode.geocode(event_info['address'])
+                if geo_result:
+                    event_info['geocode'] = geo_result
+                    current_geo_data.append(event_info)
+    
+    return jsonify({
+        'success': True,
+        'count': len(current_geo_data),
+        'data': current_geo_data
+    })
+
+
+@app.route('/api/geojson')
+def get_geojson():
+    """获取 GeoJSON 数据"""
+    global current_geo_data
+    
+    features = []
+    for item in current_geo_data:
+        if 'geocode' in item:
+            features.append({
+                "type": "Feature",
+                "properties": {
+                    "title": item.get('event_title', ''),
+                    "type": item.get('event_type', ''),
+                    "content": item.get('event_content', ''),
+                    "address": item.get('address', '')
+                },
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [
+                        item['geocode']['longitude'],
+                        item['geocode']['latitude']
+                    ]
+                }
+            })
+    
+    return jsonify({
+        "type": "FeatureCollection",
+        "features": features
+    })
+
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    """聊天接口 - 支持 Agent 控制地图"""
+    data = request.json
+    message = data.get('message', '')
+    
+    llm = get_llm()
+    if not llm:
+        return jsonify({'error': 'LLM 未初始化'}), 500
+    
+    # 对话
+    response = llm.chat([
+        {"role": "system", "content": """你是 AI-MapBook 助手，可以控制地图。
+        
+可用的地图控制命令：
+- 添加标记: 在地图上添加一个标记点
+- 移除标记: 移除指定的标记
+- 设置视图: 移动地图到指定位置
+- 绘制路径: 在地图上绘制一条路径
+
+当用户请求时，自动执行相应的地图操作。
+返回结果时，使用 Markdown 格式。"""},
+        {"role": "user", "content": message}
+    ], stream=False)
+    
+    response_text = response.choices[0].message.content
+    
+    # 检测是否需要执行地图操作
+    # 这里可以集成更复杂的 Agent 来自动执行
+    
+    return jsonify({
+        'response': response_text
+    })
+
+
+@app.route('/api/map/add_marker', methods=['POST'])
+def map_add_marker():
+    """添加标记"""
+    data = request.json
+    return jsonify({
+        'success': True,
+        'action': 'add_marker',
+        'data': data
+    })
+
+
+@app.route('/api/map/set_view', methods=['POST'])
+def map_set_view():
+    """设置视图"""
+    data = request.json
+    return jsonify({
+        'success': True,
+        'action': 'set_view',
+        'data': data
+    })
+
+
+@app.route('/api/mcp/status', methods=['GET'])
+def mcp_status():
+    """MCP 服务状态"""
+    return jsonify({
+        'connected': False,
+        'message': 'MCP 服务未连接'
+    })
+
+
+# PDF 读取工具
+def read_pdf(filepath):
+    """读取 PDF 文件"""
+    try:
+        import PyPDF2
+        reader = PyPDF2.PdfReader(filepath)
+        text_list = []
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                text_list.append(text)
+        return text_list
+    except Exception as e:
+        print(f"PDF 读取错误: {e}")
+        return []
+
+
+
+
+
+@app.route('/api/chat/stream', methods=['POST'])
+def chat_stream():
+    """流式聊天接口"""
+    from flask import Response
+    
+    data = request.json
+    message = data.get('message', '')
+    
+    llm = get_llm()
+    if not llm:
+        return jsonify({'error': 'LLM 未初始化'}), 500
+    
+    def generate():
+        try:
+            response = llm.chat([
+                {"role": "system", "content": """你是 AI-MapBook 助手，专门帮助用户处理地理信息。
+你可以根据需要控制地图，调用前端函数：
+- AIMapBook.addMarker(lat, lng, title, info) - 添加标记
+- AIMapBook.flyTo(lat, lng, zoom) - 飞向位置
+- AIMapBook.clearMarkers() - 清除标记
+- AIMapBook.setMapStyle(style) - 切换底图 (street/dark/satellite)
+- AIMapBook.fitBounds() - 调整视图"""},
+                {"role": "user", "content": message}
+            ], stream=True)
+            
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+                    
+        except Exception as e:
+            yield f"\n\n[错误: {str(e)}]"
+    
+    return Response(generate(), mimetype='text/event-stream')
+
+
+# MCP 工具集成
+from core.mcp import get_mcp_client, MapControlTool
+
+@app.route('/api/mcp/tools', methods=['GET'])
+def get_mcp_tools():
+    """获取 MCP 工具列表"""
+    mcp = get_mcp_client()
+    return jsonify({
+        "tools": mcp.get_tools_schema()
+    })
+
+
+@app.route('/api/mcp/execute', methods=['POST'])
+def execute_mcp():
+    """执行 MCP 工具"""
+    data = request.json
+    function_name = data.get('function')
+    arguments = data.get('arguments', {})
+    
+    mcp = get_mcp_client()
+    result = mcp.execute_function(function_name, **arguments)
+    
+    return jsonify(result)
+
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=5000, debug=True)

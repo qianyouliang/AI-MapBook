@@ -1,0 +1,53 @@
+<!-- 侧边栏 -->
+<aside class="sidebar">
+    <!-- 文件上传 -->
+    <div class="panel">
+        <div class="panel-title">📁 文件上传</div>
+        <div class="file-upload" id="fileUpload">
+            <input type="file" id="fileInput" accept=".pdf,.txt">
+            <div class="file-icon">📄</div>
+            <div class="file-name" id="fileName">点击或拖拽上传文件</div>
+        </div>
+    </div>
+    
+    <!-- 设置 -->
+    <div class="panel">
+        <div class="panel-title">⚙️ 参数设置</div>
+        
+        <div class="form-group">
+            <label class="form-label">API Key</label>
+            <input type="password" class="form-input" id="apiKey" placeholder="输入 DeepSeek API Key">
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">地理编码</label>
+            <select class="form-select" id="geocodeType">
+                <option value="free">免费 (Nominatim)</option>
+                <option value="baidu">百度地图 API</option>
+            </select>
+        </div>
+        
+        <div class="form-group" id="baiduKeyGroup" style="display: none;">
+            <label class="form-label">百度 Key</label>
+            <input type="text" class="form-input" id="baiduKey" placeholder="百度地图 API Key">
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">
+                <input type="checkbox" id="useRag"> 启用 RAG 增强
+            </label>
+        </div>
+        
+        <button class="btn" id="processBtn">开始处理</button>
+    </div>
+    
+    <!-- 事件列表 -->
+    <div class="panel">
+        <div class="panel-title">📍 事件列表 <span id="eventCount">(0)</span></div>
+        <div class="event-list" id="eventList">
+            <div style="color: #666; text-align: center; padding: 1rem;">
+                暂无事件数据
+            </div>
+        </div>
+    </div>
+</aside>
