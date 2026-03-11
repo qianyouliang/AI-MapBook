@@ -1,0 +1,12 @@
+<!-- 聊天 -->
+<div class="chat-container active" id="chatContainer">
+    <div class="chat-header">
+        <span>🤖 MapAgent</span>
+        <span onclick="AIMapBook.toggleChat()" style="cursor: pointer;">✕</span>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-area">
+        <input type="text" class="chat-input" id="chatInput" placeholder="输入消息...">
+        <button class="btn btn-secondary" style="width: auto;" onclick="AIMapBook.sendMessage()">发送</button>
+    </div>
+</div>

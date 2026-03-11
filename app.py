@@ -14,7 +14,9 @@ from core.geocode import GeocodeModel
 from config.settings import config
 
 # 初始化 Flask
-app = Flask(__name__)
+app = Flask(__name__, 
+    template_folder='templates',
+    static_folder='static')
 app.config['SECRET_KEY'] = os.urandom(24)
 app.config['UPLOAD_FOLDER'] = config.DATA_DIR
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_FILE_SIZE
