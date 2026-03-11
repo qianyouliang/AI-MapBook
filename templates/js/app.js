@@ -174,7 +174,7 @@ function focusEvent(index) {
 }
 
 /**
- * 聊天功能 - 流式输出
+ * 聊天功能 - 流式输出 + MCP 工具
  */
 function toggleChat() {
     document.getElementById('chatContainer').classList.toggle('active');
@@ -206,33 +206,91 @@ async function sendMessage() {
     messagesEl.appendChild(aiMsg);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     
+    let fullResponse = '';
+    let executingTool = false;
+    
     try {
         const res = await fetch('/api/chat/stream', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message})
+            body: JSON.stringify({message, use_mcp: true})
         });
         
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        let fullResponse = '';
         
         while (true) {
             const {done, value} = await reader.read();
             if (done) break;
             
             const chunk = decoder.decode(value);
-            fullResponse += chunk;
             
-            // 流式更新
-            const typingEl = document.getElementById('ai-' + timestamp).querySelector('.typing');
-            typingEl.innerHTML = marked.parse(fullResponse);
-            messagesEl.scrollTop = messagesEl.scrollHeight;
+            // 检查是否是工具调用指令
+            if (chunk.startsWith('[TOOL:')) {
+                const toolEnd = chunk.indexOf(']');
+                if (toolEnd > 0) {
+                    const toolCall = JSON.parse(chunk.slice(6, toolEnd));
+                    executingTool = true;
+                    
+                    // 执行工具
+                    await executeTool(toolCall.name, toolCall.args);
+                    
+                    // 添加工具执行结果
+                    const toolResult = `\n\n✅ 已执行: ${toolCall.name}`;
+                    fullResponse += toolResult;
+                    
+                    const typingEl = document.getElementById('ai-' + timestamp).querySelector('.typing');
+                    typingEl.innerHTML = marked.parse(fullResponse);
+                    messagesEl.scrollTop = messagesEl.scrollHeight;
+                    executingTool = false;
+                }
+            } else {
+                fullResponse += chunk;
+                
+                const typingEl = document.getElementById('ai-' + timestamp).querySelector('.typing');
+                typingEl.innerHTML = marked.parse(fullResponse);
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
         }
         
     } catch (error) {
         const errorEl = document.getElementById('ai-' + timestamp).querySelector('.typing');
         errorEl.innerHTML = `<span style="color: #ff4444;">错误: ${error.message}</span>`;
+    }
+}
+
+/**
+ * 执行 MCP 工具
+ */
+async function executeTool(name, args) {
+    try {
+        const res = await fetch('/api/mcp/execute', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                function: name,
+                arguments: args
+            })
+        });
+        
+        const result = await res.json();
+        console.log('Tool result:', result);
+        
+        // 根据结果执行地图操作
+        if (result.action === 'addMarker' && result.lat) {
+            AIMapBook.addMarker(result.lat, result.lng, result.title, result.info);
+        } else if (result.action === 'flyTo') {
+            AIMapBook.flyTo(result.lat, result.lng, result.zoom);
+        } else if (result.action === 'clearMarkers') {
+            AIMapBook.clearMarkers();
+        } else if (result.action === 'fitBounds') {
+            AIMapBook.fitBounds();
+        } else if (result.action === 'setMapStyle') {
+            AIMapBook.setMapStyle(result.style);
+        }
+        
+    } catch (e) {
+        console.error('Tool execution failed:', e);
     }
 }
 

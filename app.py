@@ -263,8 +263,7 @@ def read_pdf(filepath):
         return []
 
 
-if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5000, debug=True)
+
 
 
 @app.route('/api/chat/stream', methods=['POST'])
@@ -325,3 +324,6 @@ def execute_mcp():
     result = mcp.execute_function(function_name, **arguments)
     
     return jsonify(result)
+
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=5000, debug=True)
