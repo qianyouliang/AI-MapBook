@@ -182,7 +182,7 @@ def get_geojson():
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    """聊天接口"""
+    """聊天接口 - 支持 Agent 控制地图"""
     data = request.json
     message = data.get('message', '')
     
@@ -190,14 +190,59 @@ def chat():
     if not llm:
         return jsonify({'error': 'LLM 未初始化'}), 500
     
-    # 简单对话
+    # 对话
     response = llm.chat([
-        {"role": "system", "content": "你是 AI-MapBook 助手，帮助用户处理地理信息。"},
+        {"role": "system", "content": """你是 AI-MapBook 助手，可以控制地图。
+        
+可用的地图控制命令：
+- 添加标记: 在地图上添加一个标记点
+- 移除标记: 移除指定的标记
+- 设置视图: 移动地图到指定位置
+- 绘制路径: 在地图上绘制一条路径
+
+当用户请求时，自动执行相应的地图操作。
+返回结果时，使用 Markdown 格式。"""},
         {"role": "user", "content": message}
     ], stream=False)
     
+    response_text = response.choices[0].message.content
+    
+    # 检测是否需要执行地图操作
+    # 这里可以集成更复杂的 Agent 来自动执行
+    
     return jsonify({
-        'response': response.choices[0].message.content
+        'response': response_text
+    })
+
+
+@app.route('/api/map/add_marker', methods=['POST'])
+def map_add_marker():
+    """添加标记"""
+    data = request.json
+    return jsonify({
+        'success': True,
+        'action': 'add_marker',
+        'data': data
+    })
+
+
+@app.route('/api/map/set_view', methods=['POST'])
+def map_set_view():
+    """设置视图"""
+    data = request.json
+    return jsonify({
+        'success': True,
+        'action': 'set_view',
+        'data': data
+    })
+
+
+@app.route('/api/mcp/status', methods=['GET'])
+def mcp_status():
+    """MCP 服务状态"""
+    return jsonify({
+        'connected': False,
+        'message': 'MCP 服务未连接'
     })
 
 
@@ -220,3 +265,38 @@ def read_pdf(filepath):
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5000, debug=True)
+
+
+@app.route('/api/chat/stream', methods=['POST'])
+def chat_stream():
+    """流式聊天接口"""
+    from flask import Response
+    
+    data = request.json
+    message = data.get('message', '')
+    
+    llm = get_llm()
+    if not llm:
+        return jsonify({'error': 'LLM 未初始化'}), 500
+    
+    def generate():
+        try:
+            response = llm.chat([
+                {"role": "system", "content": """你是 AI-MapBook 助手，专门帮助用户处理地理信息。
+你可以根据需要控制地图，调用前端函数：
+- AIMapBook.addMarker(lat, lng, title, info) - 添加标记
+- AIMapBook.flyTo(lat, lng, zoom) - 飞向位置
+- AIMapBook.clearMarkers() - 清除标记
+- AIMapBook.setMapStyle(style) - 切换底图 (street/dark/satellite)
+- AIMapBook.fitBounds() - 调整视图"""},
+                {"role": "user", "content": message}
+            ], stream=True)
+            
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+                    
+        except Exception as e:
+            yield f"\n\n[错误: {str(e)}]"
+    
+    return Response(generate(), mimetype='text/event-stream')

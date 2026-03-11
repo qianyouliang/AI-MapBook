@@ -13,6 +13,10 @@
     
     <!-- 样式 -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Markdown 渲染 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.2.0/github-markdown.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     {% include 'components/header.html' %}
@@ -24,6 +28,9 @@
     
     {% include 'components/statusbar.html' %}
     {% include 'components/chat.html' %}
+    
+    <!-- marked.js for Markdown -->
+    <script src="https://unpkg.com/marked/marked.min.js"></script>
     
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

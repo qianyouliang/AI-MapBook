@@ -1,5 +1,5 @@
 /**
- * AI-MapBook 主逻辑
+ * AI-MapBook 主逻辑 - 支持流式输出
  */
 
 // 全局变量
@@ -39,7 +39,7 @@ function initEvents() {
     // 处理按钮
     document.getElementById('processBtn').addEventListener('click', processFile);
     
-    // 聊天发送
+    // 聊天输入 - 回车发送
     document.getElementById('chatInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             sendMessage();
@@ -65,11 +65,9 @@ async function processFile() {
         return;
     }
     
-    // 显示加载
     showLoading('上传文件中...');
     
     try {
-        // 1. 上传文件
         const formData = new FormData();
         formData.append('file', file);
         
@@ -86,7 +84,6 @@ async function processFile() {
         
         showLoading('处理中...');
         
-        // 2. 处理文件
         const processRes = await fetch('/api/process', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -105,7 +102,6 @@ async function processFile() {
             throw new Error(processData.error);
         }
         
-        // 显示数据
         geoData = processData.data;
         displayEvents(geoData);
         
@@ -123,11 +119,9 @@ async function processFile() {
  * 显示事件
  */
 function displayEvents(data) {
-    // 清除标记
     markers.forEach(m => map.removeLayer(m));
     markers = [];
     
-    // 更新列表
     const listEl = document.getElementById('eventList');
     document.getElementById('eventCount').textContent = `(${data.length})`;
     
@@ -162,7 +156,6 @@ function displayEvents(data) {
     
     listEl.innerHTML = html;
     
-    // 调整视图
     if (markers.length > 0) {
         const group = L.featureGroup(markers);
         map.fitBounds(group.getBounds().pad(0.1));
@@ -181,7 +174,7 @@ function focusEvent(index) {
 }
 
 /**
- * 聊天功能
+ * 聊天功能 - 流式输出
  */
 function toggleChat() {
     document.getElementById('chatContainer').classList.toggle('active');
@@ -194,48 +187,117 @@ async function sendMessage() {
     if (!message) return;
     
     const messagesEl = document.getElementById('chatMessages');
-    messagesEl.innerHTML += `<div style="margin-bottom: 0.5rem;">👤 ${message}</div>`;
+    
+    // 用户消息 (Markdown)
+    const userMsg = document.createElement('div');
+    userMsg.style.marginBottom = '0.8rem';
+    userMsg.innerHTML = `<div style="color: var(--secondary); margin-bottom: 4px;">👤</div><div class="markdown-body" style="background: rgba(0,50,80,0.3); padding: 8px; border-radius: 4px;">${marked.parse(message)}</div>`;
+    messagesEl.appendChild(userMsg);
+    
     input.value = '';
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    
+    // AI 响应占位
+    const aiMsg = document.createElement('div');
+    aiMsg.style.marginBottom = '0.8rem';
+    const timestamp = Date.now();
+    aiMsg.id = 'ai-' + timestamp;
+    aiMsg.innerHTML = `<div style="color: var(--primary); margin-bottom: 4px;">🤖</div><div class="markdown-body typing"></div>`;
+    messagesEl.appendChild(aiMsg);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
     
     try {
-        const res = await fetch('/api/chat', {
+        const res = await fetch('/api/chat/stream', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({message})
         });
         
-        const data = await res.json();
-        messagesEl.innerHTML += `<div style="margin-bottom: 0.5rem; color: var(--primary);">🤖 ${data.response}</div>`;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullResponse = '';
+        
+        while (true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            fullResponse += chunk;
+            
+            // 流式更新
+            const typingEl = document.getElementById('ai-' + timestamp).querySelector('.typing');
+            typingEl.innerHTML = marked.parse(fullResponse);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+        
     } catch (error) {
-        messagesEl.innerHTML += `<div style="color: #ff4444;">错误: ${error.message}</div>`;
+        const errorEl = document.getElementById('ai-' + timestamp).querySelector('.typing');
+        errorEl.innerHTML = `<span style="color: #ff4444;">错误: ${error.message}</span>`;
     }
-    
-    messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 /**
- * 显示加载
+ * 地图控制 - Agent 调用
+ */
+function addMarker(lat, lng, title, info) {
+    const marker = L.marker([lat, lng])
+        .addTo(map)
+        .bindPopup(`<strong>${title}</strong><br>${info}`);
+    markers.push(marker);
+    return marker;
+}
+
+function flyTo(lat, lng, zoom = 12) {
+    map.flyTo([lat, lng], zoom);
+}
+
+function fitBounds() {
+    if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.1));
+    }
+}
+
+function clearMarkers() {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+}
+
+function setMapStyle(style) {
+    // 切换底图
+    const styles = {
+        'street': 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'dark': 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        'satellite': 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+    };
+    
+    // 清除所有图层
+    map.eachLayer(layer => {
+        if (layer instanceof L.TileLayer) {
+            map.removeLayer(layer);
+        }
+    });
+    
+    L.tileLayer(styles[style] || styles.street).addTo(map);
+}
+
+/**
+ * 显示/隐藏加载
  */
 function showLoading(text) {
     document.getElementById('loading').classList.add('active');
     updateStatus(text || '处理中...');
 }
 
-/**
- * 隐藏加载
- */
 function hideLoading() {
     document.getElementById('loading').classList.remove('active');
 }
 
-/**
- * 更新状态
- */
 function updateStatus(text) {
     document.getElementById('statusText').textContent = text;
 }
 
-// 导出
+// 导出供外部调用
 window.AIMapBook = {
     initMap,
     initEvents,
@@ -245,5 +307,11 @@ window.AIMapBook = {
     sendMessage,
     showLoading,
     hideLoading,
-    updateStatus
+    updateStatus,
+    // 地图控制
+    addMarker,
+    flyTo,
+    fitBounds,
+    clearMarkers,
+    setMapStyle
 };
