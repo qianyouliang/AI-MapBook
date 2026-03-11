@@ -300,3 +300,28 @@ def chat_stream():
             yield f"\n\n[错误: {str(e)}]"
     
     return Response(generate(), mimetype='text/event-stream')
+
+
+# MCP 工具集成
+from core.mcp import get_mcp_client, MapControlTool
+
+@app.route('/api/mcp/tools', methods=['GET'])
+def get_mcp_tools():
+    """获取 MCP 工具列表"""
+    mcp = get_mcp_client()
+    return jsonify({
+        "tools": mcp.get_tools_schema()
+    })
+
+
+@app.route('/api/mcp/execute', methods=['POST'])
+def execute_mcp():
+    """执行 MCP 工具"""
+    data = request.json
+    function_name = data.get('function')
+    arguments = data.get('arguments', {})
+    
+    mcp = get_mcp_client()
+    result = mcp.execute_function(function_name, **arguments)
+    
+    return jsonify(result)
