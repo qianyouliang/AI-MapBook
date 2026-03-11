@@ -3,9 +3,9 @@ import os
 from io import BytesIO
 from utils.geocode_utils import GeocodeUtils
 from utils.text_processing import FileProcessor
-from utils.model_back import ModelBack
+from utils.model_back import LLMModel as ModelBack
 from utils.map import Map
-from utils.rag import RAG
+from utils.rag import RAGModel as RAG
 
 def upload_and_process_file(llm,rag,processing_info,row1_col1,row1_col2,row2):
     uploaded_file = st.sidebar.file_uploader("上传文件", type=["pdf", "txt"])

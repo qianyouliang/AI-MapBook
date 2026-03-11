@@ -4,6 +4,7 @@ AI-MapBook 支持多种文件格式
 """
 import os
 import re
+from html.parser import HTMLParser
 from io import BytesIO
 from typing import List, Optional
 import PyPDF2
@@ -16,20 +17,30 @@ except ImportError:
     DOCX_AVAILABLE = False
 
 try:
-    import epub2
+    import ebooklib
+    from ebooklib import epub
     EPUB_AVAILABLE = True
 except ImportError:
-    try:
-        import epub
-        EPUB_AVAILABLE = True
-    except ImportError:
-        EPUB_AVAILABLE = False
+    EPUB_AVAILABLE = False
 
 try:
     import mobi
     MOBI_AVAILABLE = True
 except ImportError:
     MOBI_AVAILABLE = False
+
+
+class _HtmlToText(HTMLParser):
+    """从 HTML 内容提取纯文本"""
+    def __init__(self):
+        super().__init__()
+        self.parts = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+    def get_text(self) -> str:
+        return "".join(self.parts)
 
 
 class FileProcessor:
@@ -63,7 +74,7 @@ class FileProcessor:
         if ext in ["docx", "doc"] and not DOCX_AVAILABLE:
             missing.append("python-docx")
         elif ext == "epub" and not EPUB_AVAILABLE:
-            missing.append("epub2")
+            missing.append("EbookLib")
         elif ext == "mobi" and not MOBI_AVAILABLE:
             missing.append("mobi")
         
@@ -138,32 +149,38 @@ class FileProcessor:
         return [full_text[i:i+chunk_size] for i in range(0, len(full_text), chunk_size)]
     
     def extract_text_from_epub(self, file) -> List[str]:
-        """从 EPUB 提取文本"""
+        """从 EPUB 提取文本（使用 EbookLib）"""
         if not EPUB_AVAILABLE:
-            raise ImportError("需要安装 epub2: pip install epub2")
-        
+            raise ImportError("需要安装 EbookLib: pip install EbookLib")
+
         if isinstance(file, bytes):
-            # 保存到临时文件
             import tempfile
             with tempfile.NamedTemporaryFile(suffix='.epub', delete=False) as tmp:
                 tmp.write(file)
                 tmp_path = tmp.name
-            
             try:
-                book = epub2.read_epub(tmp_path)
+                book = epub.read_epub(tmp_path)
             finally:
                 os.unlink(tmp_path)
         else:
-            book = epub2.read_epub(file)
-        
-        # 提取所有文本
+            book = epub.read_epub(file)
+
+        parser = _HtmlToText()
         texts = []
-        for chapter in book.chapters:
-            text = chapter.text if hasattr(chapter, 'text') else str(chapter)
-            if text:
-                texts.append(text)
-        
-        # 合并并分块
+        for item in book.get_items():
+            if item.get_type() == ebooklib.ITEM_DOCUMENT:
+                content = item.get_content()
+                if content:
+                    try:
+                        html_str = content.decode("utf-8", errors="replace")
+                    except Exception:
+                        html_str = content.decode("latin-1", errors="replace")
+                    parser.parts = []
+                    parser.feed(html_str)
+                    text = parser.get_text().strip()
+                    if text:
+                        texts.append(text)
+
         full_text = "\n".join(texts)
         chunk_size = 5000
         return [full_text[i:i+chunk_size] for i in range(0, len(full_text), chunk_size)]

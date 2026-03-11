@@ -1,8 +1,8 @@
 # 文件处理依赖
 PyPDF2
 python-docx>=0.8.0
-epub2>=0.2.0
-mobi>=0.2.0
+EbookLib
+mobi
 
 # 原有依赖
 geopy==2.4.1

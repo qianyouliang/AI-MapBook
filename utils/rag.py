@@ -1,138 +1,164 @@
+"""
+RAG 模块
+AI-MapBook - 使用开源 Embedding + DeepSeek
+"""
 import os
-import faiss
-from io import BytesIO
-from dotenv import load_dotenv, find_dotenv
-from llama_index.vector_stores.faiss import FaissVectorStore
-from llama_index.core import StorageContext, SimpleDirectoryReader, Document,VectorStoreIndex, load_index_from_storage, Settings
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.llms.openai_like import OpenAILike
-from typing import List, Dict
-from modelscope import snapshot_download, AutoModel, AutoTokenizer
+from typing import List, Dict, Optional
+from pathlib import Path
+import tempfile
+
+# 可选依赖
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+
+try:
+    import faiss
+    FAISS_AVAILABLE = True
+except ImportError:
+    FAISS_AVAILABLE = False
+
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-class RAG:
-
-    def __init__(self, api_key:str,persist_dir: str = './storage', embed_model_name: str = "models/AI-ModelScope/bge-small-zh-v1___5",model_type:str='deepseek'):
-        self.persist_dir = persist_dir
-        self.embed_model_name = embed_model_name
-        self.model_type = model_type
-        
-         # Check if the embedding model exists, if not, download it
-        if not os.path.exists(self.embed_model_name):
-            self.download_embedding_model()
-        # Initialize embedding model
-        self.embed_model = HuggingFaceEmbedding(model_name=self.embed_model_name)
-        Settings.embed_model = self.embed_model
-        # Initialize FAISS index
-        self.faiss_index = faiss.IndexFlatL2(512)
-        self.vector_store = FaissVectorStore(faiss_index=self.faiss_index)
-        self.storage_context = StorageContext.from_defaults(vector_store=self.vector_store)
-        if model_type == 'deepseek':
-            self.llm = OpenAILike(
-                api_base="https://api.deepseek.com/beta", 
-                api_key=api_key,
-                model="deepseek-chat",
-            )
-            os.environ["OPENAI_API_KEY"] = api_key
-            os.environ["OPENAI_BASE_URL"] = "https://api.deepseek.com"
-
-            Settings.llm = self.llm   
-        elif model_type == 'ipex_llm':
-            from llama_index.llms.ipex_llm import IpexLLM
-            self.llm = IpexLLM.from_model_id_low_bit(
-                model_name="models/qwen2chat_int4",
-                tokenizer_name="models/qwen2chat_int4",
-                context_window=4096,
-                max_new_tokens=2048,
-                generate_kwargs={"temperature": 0.0, "do_sample": False},
-                completion_to_prompt=self.completion_to_prompt,
-                messages_to_prompt=self.messages_to_prompt,
-                device_map="cpu",
-            )
-            Settings.llm = self.llm   
-
-    def download_embedding_model(self):
-        """
-        Download the embedding model if it does not exist.
-        """
-        print(f"Downloading embedding model: {self.embed_model_name}")
-        snapshot_download("AI-ModelScope/bge-small-zh-v1.5", cache_dir='models', revision='master')
-        print(f"Embedding model downloaded and saved to: {self.embed_model_name}")
-    # def split_pdf(self, file_stream: BytesIO, max_length: int = 5000):
-    #     reader = PyPDF2.PdfFileReader(file_stream)
-    #     text_chunks = []
-    #     for page_num in range(reader.numPages):
-    #         page = reader.getPage(page_num)
-    #         text = page.extract_text()
-    #         text_chunks.extend([text[i:i+max_length] for i in range(0, len(text), max_length)])
-    #     return text_chunks
-
-    # def split_txt(self, file_stream: BytesIO, max_length: int = 5000):
-    #     text = file_stream.read().decode('utf-8')
-    #     text_chunks = [text[i:i+max_length] for i in range(0, len(text), max_length)]
-    #     return text_chunks
-    def completion_to_prompt(self, completion: str, **kwargs) -> str:
-        """
-        将完成转换为提示格式
-
-        Args:
-            completion (str): 完成的文本
-
-        Returns:
-            str: 格式化后的提示
-        """
-        return f"\n</s>\n\n{completion}</s>\n\n"
-
-
-
-
-    def messages_to_prompt(self, messages: List[Dict[str, str]]) -> str:
-        """
-        将消息列表转换为提示格式
-
-        Args:
-            messages (List[Dict[str, str]]): 消息列表
-
-        Returns:
-            str: 格式化后的提示
-        """
-        prompt = ""
-        for message in messages:
-            if message['role'] == "system":
-                prompt += f"\n{message['content']}</s>\n"
-            elif message['role'] == "user":
-                prompt += f"\n{message['content']}</s>\n"
-            elif message['role'] == "assistant":
-                prompt += f"\n{message['content']}</s>\n"
-
-        if not prompt.startswith("\n"):
-            prompt = "\n</s>\n" + prompt
-
-        prompt = prompt + "\n"
-
-        return prompt
-
+class RAGModel:
+    """RAG 模型"""
     
-    def build_index_from_file(self):
-        documents = SimpleDirectoryReader("./data").load_data()
-        index = VectorStoreIndex.from_documents(
-            documents, storage_context=self.storage_context
-        )
-        index.storage_context.persist() # 保存到本地，这里暂时屏蔽
-        self.index_db = index
+    def __init__(self, api_key: str = None, model_type: str = "deepseek"):
+        """
+        初始化 RAG 模型
         
+        Args:
+            api_key: API 密钥
+            model_type: 模型类型
+        """
+        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY", "")
+        self.model_type = model_type
+        self.embedding_model = None
+        self.index = None
+        self.chunks = []
+        self.metadata = []
+        
+        # 初始化 embedding 模型
+        self._init_embedding()
+    
+    def _init_embedding(self):
+        """初始化 embedding 模型"""
+        if not SENTENCE_TRANSFORMERS_AVAILABLE:
+            print("Warning: sentence-transformers not installed")
+            return
+        
+        # 使用开源 embedding 模型
+        model_name = "BAAI/bge-small-zh-v1.5"
+        try:
+            self.embedding_model = SentenceTransformer(model_name)
+            print(f"Loaded embedding model: {model_name}")
+        except Exception as e:
+            print(f"Failed to load embedding model: {e}")
+    
+    def build_index_from_file(self, file_path: str = None, chunk_size: int = 512):
+        """
+        从文件构建索引
+        
+        Args:
+            file_path: 文件路径
+            chunk_size: 块大小
+        """
+        if not file_path:
+            # 使用默认数据目录
+            data_dir = Path(__file__).parent.parent / "data"
+            txt_files = list(data_dir.glob("*.txt"))
+            if txt_files:
+                file_path = str(txt_files[0])
+        
+        if not file_path or not os.path.exists(file_path):
+            print("No file found for RAG")
+            return
+        
+        # 读取文件
+        with open(file_path, 'r', encoding='utf-8') as f:
+            text = f.read()
+        
+        # 分块
+        self.chunks = self._chunk_text(text, chunk_size)
+        
+        # 生成 embeddings
+        if self.embedding_model and self.chunks:
+            embeddings = self.embedding_model.encode(self.chunks)
+            
+            # 构建 FAISS 索引
+            if FAISS_AVAILABLE and NUMPY_AVAILABLE:
+                dimension = embeddings.shape[1]
+                self.index = faiss.IndexFlatL2(dimension)
+                self.index.add(embeddings)
+                
+                print(f"Built index with {len(self.chunks)} chunks")
+    
+    def _chunk_text(self, text: str, chunk_size: int) -> List[str]:
+        """将文本分块"""
+        # 简单按句子分块
+        import re
+        sentences = re.split(r'[。！？\n]', text)
+        
+        chunks = []
+        current_chunk = ""
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            
+            if len(current_chunk) + len(sentence) <= chunk_size:
+                current_chunk += sentence + "。"
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                current_chunk = sentence + "。"
+        
+        if current_chunk:
+            chunks.append(current_chunk)
+        
+        return chunks
+    
+    def query_index(self, query: str, top_k: int = 3) -> str:
+        """
+        查询索引
+        
+        Args:
+            query: 查询文本
+            top_k: 返回结果数量
+        
+        Returns:
+            相关文本
+        """
+        if not self.index or not self.embedding_model:
+            return ""
+        
+        # 生成 query embedding
+        query_embedding = self.embedding_model.encode([query])
+        
+        # 搜索
+        distances, indices = self.index.search(query_embedding, top_k)
+        
+        # 返回相关文本
+        results = []
+        for idx in indices[0]:
+            if idx < len(self.chunks):
+                results.append(self.chunks[idx])
+        
+        return "\n".join(results)
 
-    # 加载本地向量数据库
-    def load_index(self):
-        self.vector_store = FaissVectorStore.from_persist_dir(self.persist_dir)
-        self.storage_context = StorageContext.from_defaults(
-            vector_store=self.vector_store, persist_dir=self.persist_dir
-        )
-        return load_index_from_storage(storage_context=self.storage_context)
 
-    # 检索内容
-    def query_index(self, query: str):
-        index_db = self.load_index()
-        query_engine = index_db.as_query_engine()
-        response = query_engine.query(query)
-        return response
+def create_rag(api_key: str = None) -> RAGModel:
+    """创建 RAG 模型"""
+    return RAGModel(api_key=api_key)
